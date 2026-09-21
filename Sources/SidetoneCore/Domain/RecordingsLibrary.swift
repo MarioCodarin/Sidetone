@@ -1,33 +1,29 @@
 import Foundation
 
 /// One past recording on disk (a folder under ~/Documents/Recordings).
-struct RecordingEntry: Identifiable, Equatable {
+public struct RecordingEntry: Identifiable, Equatable {
     /// Folder path — stable identity.
-    var id: String { folderURL.path }
-    let folderURL: URL
+    public var id: String { folderURL.path }
+    public let folderURL: URL
     /// Parsed meeting title (nil for ad-hoc recordings).
-    let title: String?
+    public let title: String?
     /// Best timestamp for the recording (parsed from the folder name, else file date).
-    let date: Date
+    public let date: Date
     /// audio.m4a, if it exists.
-    let audioURL: URL?
-    /// transcript.md, if it exists.
-    let transcriptURL: URL?
+    public let audioURL: URL?
 
-    var hasTranscript: Bool { transcriptURL != nil }
-    var displayTitle: String {
+    public var displayTitle: String {
         if let title, !title.isEmpty { return title }
         return "Recording"
     }
 }
 
 /// Reads the on-disk recordings library so the panel can show prior recordings
-/// (and their transcripts) after a restart — the in-memory list doesn't survive
-/// relaunches.
-enum RecordingsLibrary {
+/// after a restart — the in-memory list doesn't survive relaunches.
+public enum RecordingsLibrary {
 
     /// ~/Documents/Recordings (not created here).
-    static func recordingsRoot() -> URL? {
+    public static func recordingsRoot() -> URL? {
         guard let documents = try? FileManager.default.url(
             for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false
         ) else { return nil }
@@ -35,9 +31,11 @@ enum RecordingsLibrary {
     }
 
     /// The `limit` most recent recording folders, newest first.
-    static func recent(limit: Int) -> [RecordingEntry] {
+    ///
+    /// - Parameter root: override for tests. `nil` uses `recordingsRoot()`.
+    public static func recent(limit: Int, root: URL? = nil) -> [RecordingEntry] {
         let fm = FileManager.default
-        guard let root = recordingsRoot(),
+        guard let root = root ?? recordingsRoot(),
               let items = try? fm.contentsOfDirectory(
                 at: root,
                 includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey, .contentModificationDateKey],
@@ -53,13 +51,11 @@ enum RecordingsLibrary {
             guard values?.isDirectory == true else { return nil }
 
             let audio = url.appendingPathComponent("audio.m4a")
-            let transcript = url.appendingPathComponent("transcript.md")
             let hasAudio = fm.fileExists(atPath: audio.path)
-            let hasTranscript = fm.fileExists(atPath: transcript.path)
             let hasRaw = fm.fileExists(atPath: url.appendingPathComponent("desktop.caf").path)
                 || fm.fileExists(atPath: url.appendingPathComponent("mic.caf").path)
             // Only surface folders that actually look like recordings.
-            guard hasAudio || hasTranscript || hasRaw else { return nil }
+            guard hasAudio || hasRaw else { return nil }
 
             let (parsedDate, title) = parseFolderName(url.lastPathComponent)
             let fileDate = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
@@ -68,8 +64,7 @@ enum RecordingsLibrary {
                 folderURL: url,
                 title: title,
                 date: parsedDate ?? fileDate,
-                audioURL: hasAudio ? audio : nil,
-                transcriptURL: hasTranscript ? transcript : nil
+                audioURL: hasAudio ? audio : nil
             )
         }
 
@@ -77,7 +72,7 @@ enum RecordingsLibrary {
     }
 
     /// Parse "yyyy-M-d-HHmm[-title][-N]" into (date, title). Best-effort.
-    static func parseFolderName(_ name: String) -> (Date?, String?) {
+    public static func parseFolderName(_ name: String) -> (Date?, String?) {
         let parts = name.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
         guard parts.count >= 4,
               let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),

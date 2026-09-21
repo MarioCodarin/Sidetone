@@ -18,7 +18,7 @@ import CoreAudio   // AudioConvertHostTimeToNanos (mach_absolute_time -> ns)
 /// Robustness: a missing / empty / unreadable source is treated as pure silence
 /// on its channel — the function still produces a valid stereo file. The raw CAFs
 /// are never modified or deleted. Throws only on a fatal output-write failure.
-enum StereoMixer {
+public enum StereoMixer {
 
     // MARK: - Tunables
 
@@ -53,7 +53,7 @@ enum StereoMixer {
 
     // MARK: - Public entry point
 
-    static func mix(
+    public static func mix(
         desktopURL: URL,
         micURL: URL,
         desktopResult: CaptureResult,
@@ -235,7 +235,7 @@ enum StereoMixer {
     ///
     /// Host times are in the `mach_absolute_time` domain; `AudioConvertHostTimeToNanos`
     /// is the canonical converter for that domain.
-    private static func leadingSilenceFrames(
+    public static func leadingSilenceFrames(
         desktopHostTime: UInt64?,
         micHostTime: UInt64?
     ) -> (desktop: Int, mic: Int) {
@@ -266,7 +266,7 @@ enum StereoMixer {
     }
 
     /// Nanoseconds -> 48 kHz frame count (rounded to nearest, clamped >= 0).
-    private static func framesForNanos(_ nanos: UInt64) -> Int {
+    public static func framesForNanos(_ nanos: UInt64) -> Int {
         let seconds = Double(nanos) / 1_000_000_000.0
         let frames = (seconds * outputSampleRate).rounded()
         guard frames > 0, frames.isFinite else { return 0 }
@@ -275,7 +275,7 @@ enum StereoMixer {
 
     /// Build a single channel array: `leadingSilence` zeros followed by the
     /// resampled samples (or pure silence if the source is nil/empty).
-    private static func channel(from samples: [Float]?, leadingSilence: Int) -> [Float] {
+    public static func channel(from samples: [Float]?, leadingSilence: Int) -> [Float] {
         let lead = max(0, leadingSilence)
         guard let samples, !samples.isEmpty else {
             // Source absent -> a run of silence (its leading offset only; the

@@ -3,36 +3,24 @@ import AVFoundation
 
 // MARK: - RecorderState
 
-enum RecorderState: Equatable {
+public enum RecorderState: Equatable {
     case idle
     case recording
     case paused
 }
 
-// MARK: - TranscriptionState
-
-/// Post-save transcription progress, surfaced in the panel.
-enum TranscriptionState: Equatable {
-    case idle
-    case running
-    /// Transcript written to disk at this URL.
-    case done(URL)
-    /// Failed with a user-facing message.
-    case failed(String)
-}
-
 // MARK: - CaptureResult
 
 /// Returned by a capture's `stop()`.
-struct CaptureResult {
+public struct CaptureResult {
     /// mach host time (mach_absolute_time domain) of the FIRST sample written; nil if nothing captured.
-    var firstHostTime: UInt64?
+    public var firstHostTime: UInt64?
     /// actual capture sample rate.
-    var sampleRate: Double
+    public var sampleRate: Double
     /// number of audio frames written.
-    var frameCount: AVAudioFramePosition
+    public var frameCount: AVAudioFramePosition
 
-    init(firstHostTime: UInt64? = nil, sampleRate: Double = 0, frameCount: AVAudioFramePosition = 0) {
+    public init(firstHostTime: UInt64? = nil, sampleRate: Double = 0, frameCount: AVAudioFramePosition = 0) {
         self.firstHostTime = firstHostTime
         self.sampleRate = sampleRate
         self.frameCount = frameCount
@@ -41,17 +29,16 @@ struct CaptureResult {
 
 // MARK: - Meeting
 
-struct Meeting: Identifiable, Equatable {
+public struct Meeting: Identifiable, Equatable {
     /// EKEvent.eventIdentifier (or a synthesized uuid).
-    let id: String
-    let title: String
-    let start: Date
-    let end: Date
+    public let id: String
+    public let title: String
+    public let start: Date
+    public let end: Date
     /// Display names of the organizer + invitees (best-effort; may be empty).
-    /// Used only as transcription context (improving speaker-identity guesses).
-    let attendees: [String]
+    public let attendees: [String]
 
-    init(id: String, title: String, start: Date, end: Date, attendees: [String] = []) {
+    public init(id: String, title: String, start: Date, end: Date, attendees: [String] = []) {
         self.id = id
         self.title = title
         self.start = start
@@ -60,7 +47,7 @@ struct Meeting: Identifiable, Equatable {
     }
 
     /// start <= now <= end
-    func isInProgress(_ now: Date) -> Bool {
+    public func isInProgress(_ now: Date) -> Bool {
         start <= now && now <= end
     }
 
@@ -75,7 +62,7 @@ struct Meeting: Identifiable, Equatable {
     /// - cap to ~40 characters
     /// - trim leading `.`/`-`
     /// - empty result -> "meeting"
-    static func sanitize(_ raw: String) -> String {
+    public static func sanitize(_ raw: String) -> String {
         let illegal: Set<Character> = ["/", ":", "\\", "?", "%", "*", "|", "\"", "<", ">"]
 
         // Remove illegal + control characters.
@@ -111,30 +98,36 @@ struct Meeting: Identifiable, Equatable {
 
 // MARK: - RecordingSession
 
-struct RecordingSession {
+public struct RecordingSession {
     /// ~/Documents/Recordings/{yyyy-M-d}-{HHmm}[-suffix]/
-    let folderURL: URL
+    public let folderURL: URL
     /// folderURL + "desktop.caf"
-    let desktopURL: URL
+    public let desktopURL: URL
     /// folderURL + "mic.caf"
-    let micURL: URL
+    public let micURL: URL
     /// folderURL + "audio.m4a"
-    let outputURL: URL
-    let startedAt: Date
-    let meetingTitle: String?
+    public let outputURL: URL
+    public let startedAt: Date
+    public let meetingTitle: String?
 
     /// Creates the dated folder and returns the session. Throws on filesystem error.
-    static func create(now: Date, meetingTitle: String?) throws -> RecordingSession {
+    ///
+    /// - Parameter recordingsRoot: override for tests. `nil` uses `~/Documents/Recordings`.
+    public static func create(now: Date, meetingTitle: String?, recordingsRoot: URL? = nil) throws -> RecordingSession {
         let fm = FileManager.default
 
-        let documents = try fm.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let recordingsRoot = documents
-            .appendingPathComponent("Recordings", isDirectory: true)
+        let root: URL
+        if let recordingsRoot {
+            root = recordingsRoot
+        } else {
+            let documents = try fm.url(
+                for: .documentDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            root = documents.appendingPathComponent("Recordings", isDirectory: true)
+        }
 
         let dateFmt = DateFormatter()
         dateFmt.locale = Locale(identifier: "en_US_POSIX")
@@ -151,16 +144,16 @@ struct RecordingSession {
             folderName += "-\(Meeting.sanitize(title))"
         }
 
-        var folderURL = recordingsRoot.appendingPathComponent(folderName, isDirectory: true)
+        var folderURL = root.appendingPathComponent(folderName, isDirectory: true)
         // Avoid clobbering a prior recording made in the same minute (e.g. save-then-record
         // again, or a meeting whose sanitized title matches): if the folder already exists,
         // pick the next free `-N` suffix so we never overwrite existing raw files.
         if fm.fileExists(atPath: folderURL.path) {
             var n = 2
-            var candidate = recordingsRoot.appendingPathComponent("\(folderName)-\(n)", isDirectory: true)
+            var candidate = root.appendingPathComponent("\(folderName)-\(n)", isDirectory: true)
             while fm.fileExists(atPath: candidate.path) {
                 n += 1
-                candidate = recordingsRoot.appendingPathComponent("\(folderName)-\(n)", isDirectory: true)
+                candidate = root.appendingPathComponent("\(folderName)-\(n)", isDirectory: true)
             }
             folderURL = candidate
         }
@@ -180,6 +173,6 @@ struct RecordingSession {
 // MARK: - Meter mapping
 
 /// dBFS (-inf..0) -> normalized meter 0...1 for the UI.
-func meterLevel(fromDB db: Float) -> Float {
+public func meterLevel(fromDB db: Float) -> Float {
     max(0, min(1, (db + 80) / 80))
 }

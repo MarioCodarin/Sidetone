@@ -1,25 +1,25 @@
 import SwiftUI
 import AppKit
+import SidetoneCore
 
-/// The full menu-bar panel UI for the recorder.
+/// The full menu-bar panel UI for Sidetone.
 ///
 /// Layout (top -> bottom):
 ///   1. Header — state badge + elapsed (mm:ss) + status line
 ///   2. Primary controls — Record (idle) OR Pause/Resume + Save + Trash (recording/paused)
-///   3. Two level meters — "Desktop (L)" + "Mic (R)" bound to model.desktopLevel/micLevel
-///   4. Meetings list — title + time range, with a per-row record button; in-progress highlighted
+///   3. Two level meters — Them (desktop L) + You (mic R), only while capturing
+///   4. Meetings list — title + time range, with a per-row record button
 ///   5. Footer — Recordings folder + Settings… + Quit
 ///
-/// Preferences (your name, Gemini API key, auto-transcribe, the editable prompt,
-/// and silence auto-stop) live in a dedicated Preferences window — see
-/// `PreferencesView` / `PreferencesWindowController` — opened from the footer's
-/// "Settings…" button or ⌘,.
+/// Preferences (silence auto-stop) live in a dedicated Preferences window —
+/// see `PreferencesView` / `PreferencesWindowController` — opened from the
+/// footer's "Settings…" button or ⌘,.
 ///
 /// Pure SwiftUI, compiles under Swift 5 language mode. Reads the shared @Observable model
 /// from the environment and never mutates audio objects directly — it only calls the
 /// model's intent methods (startRecording / togglePause / saveAndStop / trashAndStop / quit).
-struct RecorderPanel: View {
-    @Environment(RecorderModel.self) private var model
+struct SidetonePanel: View {
+    @Environment(SidetoneModel.self) private var model
 
     private let panelWidth: CGFloat = 340
 
@@ -31,14 +31,10 @@ struct RecorderPanel: View {
 
             controls
 
-            if showTranscription {
+            if model.state != .idle {
                 Divider()
-                transcriptionSection
+                meters
             }
-
-            Divider()
-
-            meters
 
             Divider()
 
@@ -64,7 +60,6 @@ struct RecorderPanel: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
-            // State indicator dot + label.
             Image(systemName: stateSymbolName)
                 .foregroundStyle(stateColor)
                 .font(.system(size: 14, weight: .semibold))
@@ -85,7 +80,6 @@ struct RecorderPanel: View {
 
             Spacer(minLength: 8)
 
-            // Elapsed time, only meaningful while recording / paused.
             if model.state != .idle {
                 Text(formattedElapsed(model.elapsed))
                     .font(.system(.title3, design: .monospaced))
@@ -105,7 +99,7 @@ struct RecorderPanel: View {
 
     private var stateSymbolName: String {
         switch model.state {
-        case .idle:      return "circle"
+        case .idle:      return "circle.lefthalf.filled"
         case .recording: return "record.circle.fill"
         case .paused:    return "pause.circle.fill"
         }
@@ -126,8 +120,6 @@ struct RecorderPanel: View {
         switch model.state {
         case .idle:
             if let current = model.currentMeeting {
-                // In a meeting: the primary button auto-tags it; the small
-                // secondary button records without attaching to any meeting.
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
                         Button {
@@ -158,7 +150,6 @@ struct RecorderPanel: View {
                         .truncationMode(.tail)
                 }
             } else {
-                // No meeting in progress: a single, plain Record button.
                 Button {
                     model.startRecording(meeting: nil)
                 } label: {
@@ -173,7 +164,6 @@ struct RecorderPanel: View {
 
         case .recording, .paused:
             HStack(spacing: 8) {
-                // Pause / Resume toggles between the two recording states.
                 Button {
                     model.togglePause()
                 } label: {
@@ -187,7 +177,6 @@ struct RecorderPanel: View {
                 .buttonStyle(.bordered)
                 .tint(.orange)
 
-                // Save + mix.
                 Button {
                     model.saveAndStop()
                 } label: {
@@ -198,7 +187,6 @@ struct RecorderPanel: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
 
-                // Discard everything.
                 Button(role: .destructive) {
                     model.trashAndStop()
                 } label: {
@@ -212,137 +200,12 @@ struct RecorderPanel: View {
         }
     }
 
-    // MARK: - 2b. Transcription
-
-    private var showTranscription: Bool {
-        model.transcriptionState != .idle
-    }
-
-    @ViewBuilder
-    private var transcriptionSection: some View {
-        switch model.transcriptionState {
-        case .idle:
-            EmptyView()
-
-        case .running:
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Transcribing with Gemini…")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-
-        case .done(let url):
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Transcript ready")
-                        .font(.callout.weight(.medium))
-                    Spacer()
-                }
-
-                HStack(spacing: 8) {
-                    Button {
-                        model.copyTranscriptText()
-                    } label: {
-                        Label("Copy text", systemImage: "doc.on.clipboard")
-                    }
-                    .help("Copy the transcript contents to the clipboard")
-
-                    Button {
-                        model.copyTranscriptFile()
-                    } label: {
-                        Label("Copy file", systemImage: "doc.on.doc")
-                    }
-                    .help("Copy the transcript.md file (paste into Finder, Mail, …)")
-
-                    Button {
-                        model.revealTranscript()
-                    } label: {
-                        Image(systemName: "folder")
-                    }
-                    .help("Reveal transcript.md in Finder")
-
-                    Spacer()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                // Drag handle — drag transcript.md straight into another window
-                // (Finder, Mail, an editor, a chat). Falls back to the copy/reveal
-                // buttons above if a target doesn't accept the drag.
-                transcriptDragHandle(url)
-            }
-
-        case .failed(let message):
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer()
-                }
-                if model.apiKeyIsSet {
-                    Button {
-                        model.retryTranscription()
-                    } label: {
-                        Label("Retry", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            }
-        }
-    }
-
-    /// A draggable chip representing the transcript file. Dragging it out of the
-    /// panel provides the actual file (via `NSItemProvider(contentsOf:)`), so it
-    /// can be dropped into Finder, attached in Mail, or inserted into an editor.
-    private func transcriptDragHandle(_ url: URL) -> some View {
-        let folder = url.deletingLastPathComponent().lastPathComponent
-        return HStack(spacing: 6) {
-            Image(systemName: "line.3.horizontal")
-                .foregroundStyle(.tertiary)
-                .font(.caption)
-            Image(systemName: "doc.text")
-                .foregroundStyle(.secondary)
-            Text(url.lastPathComponent)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer(minLength: 4)
-            Image(systemName: "arrow.up.forward.app")
-                .foregroundStyle(.tertiary)
-                .font(.caption)
-        }
-        .padding(.vertical, 5)
-        .padding(.horizontal, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.primary.opacity(0.06))
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        .onDrag {
-            NSItemProvider(contentsOf: url) ?? NSItemProvider()
-        } preview: {
-            Label(url.lastPathComponent, systemImage: "doc.text")
-                .padding(8)
-        }
-        .help("Drag \(folder)/\(url.lastPathComponent) into another app or window")
-    }
-
-    // MARK: - 3. Level meters
+    // MARK: - 3. Level meters (visible only while capturing)
 
     private var meters: some View {
         VStack(alignment: .leading, spacing: 8) {
-            LevelMeter(label: "Desktop (L)", level: model.desktopLevel, tint: .green)
-            LevelMeter(label: "Mic (R)",     level: model.micLevel,     tint: .blue)
+            LevelMeter(label: "Them", caption: "desktop · L", level: model.desktopLevel, tint: .green)
+            LevelMeter(label: "You", caption: "mic · R", level: model.micLevel, tint: .blue)
         }
     }
 
@@ -401,11 +264,9 @@ struct RecorderPanel: View {
     @ViewBuilder
     private func recentRow(_ entry: RecordingEntry) -> some View {
         HStack(spacing: 8) {
-            // Draggable region: icon + title/subtitle + grip. Dragging it out
-            // provides the transcript file (or the audio if there's no transcript).
             HStack(spacing: 8) {
-                Image(systemName: entry.hasTranscript ? "doc.text.fill" : "waveform.circle.fill")
-                    .foregroundStyle(entry.hasTranscript ? Color.accentColor : Color.secondary)
+                Image(systemName: "waveform.circle.fill")
+                    .foregroundStyle(Color.secondary)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.displayTitle)
@@ -418,34 +279,12 @@ struct RecorderPanel: View {
                 }
 
                 Spacer(minLength: 4)
-
-                if entry.hasTranscript {
-                    Image(systemName: "line.3.horizontal")
-                        .foregroundStyle(.tertiary)
-                        .font(.caption)
-                }
             }
             .contentShape(Rectangle())
             .onDrag { recentDragProvider(entry) }
-            .help(entry.hasTranscript
-                  ? "Drag the transcript out, or use ⋯ for more"
-                  : "Drag the audio out, or use ⋯ to transcribe")
+            .help("Drag the audio out, or use ⋯ for more")
 
-            // Actions menu.
             Menu {
-                if let transcript = entry.transcriptURL {
-                    Button { model.copyTextOfFile(transcript) } label: {
-                        Label("Copy transcript text", systemImage: "doc.on.clipboard")
-                    }
-                    Button { model.copyFileToPasteboard(transcript) } label: {
-                        Label("Copy transcript file", systemImage: "doc.on.doc")
-                    }
-                } else if entry.audioURL != nil {
-                    Button { model.transcribeExisting(entry) } label: {
-                        Label("Transcribe", systemImage: "text.bubble")
-                    }
-                    .disabled(!model.apiKeyIsSet || model.transcriptionState == .running)
-                }
                 if let audio = entry.audioURL {
                     Button { model.copyFileToPasteboard(audio) } label: {
                         Label("Copy audio file", systemImage: "waveform")
@@ -471,24 +310,19 @@ struct RecorderPanel: View {
         )
     }
 
-    /// The file dragged out of a recent row: transcript if present, else audio.
     private func recentDragProvider(_ entry: RecordingEntry) -> NSItemProvider {
-        if let transcript = entry.transcriptURL {
-            return NSItemProvider(contentsOf: transcript) ?? NSItemProvider()
-        }
         if let audio = entry.audioURL {
             return NSItemProvider(contentsOf: audio) ?? NSItemProvider()
         }
         return NSItemProvider()
     }
 
-    /// "6/3/26, 10:15 AM · Transcript" — compact date + status.
     private func recentSubtitle(_ entry: RecordingEntry) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .short
         let when = formatter.string(from: entry.date)
-        let status = entry.hasTranscript ? "Transcript" : (entry.audioURL != nil ? "Audio only" : "Raw only")
+        let status = entry.audioURL != nil ? "Audio" : "Raw only"
         return "\(when) · \(status)"
     }
 
@@ -525,14 +359,9 @@ struct RecorderPanel: View {
         }
     }
 
-    /// Open the dedicated Preferences window. The controller handles activating
-    /// the app and bringing the window front — necessary for a menu-bar–only
-    /// (`.accessory`) app, where windows otherwise open behind other apps.
     private func openPreferences() {
         PreferencesWindowController.shared.show(model: model)
     }
-
-    // MARK: - Formatting helpers
 
     /// mm:ss (or h:mm:ss past an hour) for the elapsed timer.
     private func formattedElapsed(_ interval: TimeInterval) -> String {
@@ -549,18 +378,21 @@ struct RecorderPanel: View {
 
 // MARK: - LevelMeter
 
-/// A simple horizontal level meter: a label, a track, and a tinted fill that
-/// grows with `level` (0...1). Uses GeometryReader + Capsule so it animates smoothly.
 private struct LevelMeter: View {
     let label: String
+    let caption: String
     let level: Float
     let tint: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                Text(label)
+                    .font(.caption2.weight(.medium))
+                Text(caption)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
 
             GeometryReader { geo in
                 let clamped = CGFloat(max(0, min(1, level)))
@@ -580,8 +412,6 @@ private struct LevelMeter: View {
 
 // MARK: - MeetingRow
 
-/// One meeting in the list: title + time range, with a small record button.
-/// The in-progress meeting is highlighted with a tinted background + dot.
 private struct MeetingRow: View {
     let meeting: Meeting
     let inProgress: Bool
@@ -590,7 +420,6 @@ private struct MeetingRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Live dot for the in-progress meeting.
             Circle()
                 .fill(inProgress ? Color.red : Color.clear)
                 .frame(width: 6, height: 6)
@@ -607,7 +436,6 @@ private struct MeetingRow: View {
 
             Spacer(minLength: 4)
 
-            // Per-meeting record button. Disabled while a recording is already running.
             Button {
                 onRecord()
             } label: {
@@ -626,7 +454,6 @@ private struct MeetingRow: View {
         )
     }
 
-    /// "2:00 – 3:00 PM" style range using the user's locale/short time style.
     private func timeRange(_ start: Date, _ end: Date) -> String {
         let fmt = DateFormatter()
         fmt.timeStyle = .short

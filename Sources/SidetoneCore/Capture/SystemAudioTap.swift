@@ -111,7 +111,7 @@ final class SystemAudioTap {
     /// Set true by `stop()` to tell the writer to drain and exit.
     private let writerShouldStop = OSAllocatedUnfairLock<Bool>(initialState: false)
 
-    private static let log = Logger(subsystem: "com.tobi.Recorder", category: "SystemAudioTap")
+    private static let log = Logger(subsystem: "com.mariocodarin.Sidetone", category: "SystemAudioTap")
 
     // MARK: - Realtime-path flags (separately lock-protected so the IOProc never blocks on `lock`)
 
@@ -331,7 +331,7 @@ final class SystemAudioTap {
         //        tap-list with drift compensation on. The mic is NOT part of this aggregate. ---
         let aggregateUID = UUID().uuidString
         let aggregateDescription: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Recorder System Tap",
+            kAudioAggregateDeviceNameKey: "Sidetone System Tap",
             kAudioAggregateDeviceUIDKey: aggregateUID,
             kAudioAggregateDeviceMainSubDeviceKey: outputUID,
             kAudioAggregateDeviceIsPrivateKey: true,
@@ -545,7 +545,7 @@ final class SystemAudioTap {
                 }
             }
         }
-        thread.name = "com.tobi.Recorder.desktopWriter"
+        thread.name = "com.mariocodarin.Sidetone.desktopWriter"
         thread.qualityOfService = .userInitiated
         writerThread = thread
         thread.start()

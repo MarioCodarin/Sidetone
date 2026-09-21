@@ -1,19 +1,19 @@
 #!/bin/bash
 set -e
 
-# Render the app icon and bundle it into Recorder.icns.
+# Render the app icon and bundle it into Assets/Sidetone.icns.
 #
-# icon.swift draws a 1024x1024 master PNG (Recorder-1024.png) with pure AppKit /
-# Core Graphics — no design tools or external assets. This script then downscales
-# it to every size macOS wants and packs them into Recorder.icns via iconutil.
+# Assets/icon.swift draws a 1024x1024 master PNG (Sidetone-1024.png) with pure
+# AppKit / Core Graphics. This script then downscales it to every size macOS
+# wants and packs them into Sidetone.icns via iconutil.
 
 cd "$(dirname "$0")"
 
-MASTER="Recorder-1024.png"
-SET="Recorder.iconset"
+MASTER="Sidetone-1024.png"
+SET="Sidetone.iconset"
 
-echo "==> rendering $MASTER from icon.swift"
-swift icon.swift
+echo "==> rendering $MASTER from Assets/icon.swift"
+swift Assets/icon.swift
 
 echo "==> building $SET"
 rm -rf "$SET"
@@ -29,5 +29,6 @@ sips -z 512 512  "$MASTER" --out "$SET/icon_256x256@2x.png" >/dev/null
 sips -z 512 512  "$MASTER" --out "$SET/icon_512x512.png"    >/dev/null
 cp "$MASTER" "$SET/icon_512x512@2x.png"
 
-iconutil -c icns "$SET" -o Recorder.icns
-echo "==> wrote Recorder.icns"
+iconutil -c icns "$SET" -o Assets/Sidetone.icns
+rm -rf "$SET" "$MASTER"
+echo "==> wrote Assets/Sidetone.icns"

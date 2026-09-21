@@ -14,7 +14,7 @@ import Synchronization
 /// Indices are monotonically increasing absolute counts; the storage position
 /// is `index % capacity`. `Int` is 64-bit, so wraparound of the counters
 /// themselves is not a practical concern.
-final class FloatRingBuffer: @unchecked Sendable {
+public final class FloatRingBuffer: @unchecked Sendable {
 
     private let storage: UnsafeMutablePointer<Float>
     private let capacity: Int
@@ -23,7 +23,7 @@ final class FloatRingBuffer: @unchecked Sendable {
     private let readIndex = Atomic<Int>(0)
     private let droppedFrames = Atomic<Int>(0)
 
-    init(capacityFrames: Int) {
+    public init(capacityFrames: Int) {
         precondition(capacityFrames > 0)
         capacity = capacityFrames
         storage = UnsafeMutablePointer<Float>.allocate(capacity: capacityFrames)
@@ -37,13 +37,13 @@ final class FloatRingBuffer: @unchecked Sendable {
 
     /// Frames the producer had to drop because the consumer fell behind.
     /// Expected to stay 0 in practice (the buffer holds several seconds).
-    var totalDropped: Int { droppedFrames.load(ordering: .relaxed) }
+    public var totalDropped: Int { droppedFrames.load(ordering: .relaxed) }
 
     /// Producer side (realtime thread). Copies `count` frames from `src`. If
     /// there isn't room for the whole chunk it drops it (recording the loss)
     /// rather than tearing it — a partial write would itself be a glitch.
     @discardableResult
-    func write(_ src: UnsafePointer<Float>, count: Int) -> Bool {
+    public func write(_ src: UnsafePointer<Float>, count: Int) -> Bool {
         guard count > 0 else { return true }
         let w = writeIndex.load(ordering: .relaxed)
         let r = readIndex.load(ordering: .acquiring)
@@ -65,7 +65,7 @@ final class FloatRingBuffer: @unchecked Sendable {
 
     /// Consumer side (writer thread). Copies up to `maxCount` frames into `dst`
     /// and returns how many were copied (0 when empty).
-    func read(into dst: UnsafeMutablePointer<Float>, maxCount: Int) -> Int {
+    public func read(into dst: UnsafeMutablePointer<Float>, maxCount: Int) -> Int {
         let r = readIndex.load(ordering: .relaxed)
         // Acquire: pair with the producer's release so we see its sample writes.
         let w = writeIndex.load(ordering: .acquiring)

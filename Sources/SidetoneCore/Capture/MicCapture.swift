@@ -284,7 +284,7 @@ final class MicCapture {
         }
     }
 
-    /// Drop the I/O unit so idle Recorder does not keep an AirPods HAL aggregate.
+    /// Drop the I/O unit so idle Sidetone does not keep an AirPods HAL aggregate.
     private func tearDownEngine() {
         if tapInstalled, let engine {
             engine.inputNode.removeTap(onBus: 0)

@@ -9,17 +9,17 @@ import Accelerate
 /// Cheap enough to run on the real-time audio thread (the capture classes call this
 /// inside their tap/IOProc callbacks). Uses Accelerate's `vDSP_rmsqv` for a vectorized
 /// root-mean-square over `frameLength` samples of channel 0, then converts to dBFS.
-enum RMSMeter {
+public enum RMSMeter {
 
     /// Floor for the returned level. Truly-silent or invalid buffers report this value
     /// so callers (meters, silence detection) get a stable, finite "very quiet" reading.
-    static let floorDB: Float = -120
+    public static let floorDB: Float = -120
 
     /// RMS of `buffer`'s channel 0 expressed in dBFS.
     ///
     /// - Returns `20 * log10(rms)` clamped to a floor of `-120` dBFS.
     ///   Returns the floor for empty buffers, non-float buffers, or RMS == 0.
-    static func dBFS(_ buffer: AVAudioPCMBuffer) -> Float {
+    public static func dBFS(_ buffer: AVAudioPCMBuffer) -> Float {
         // Requires deinterleaved Float32 samples. Both capture sources write mono
         // Float32, so channel 0 always carries the signal.
         guard let channels = buffer.floatChannelData else { return floorDB }
@@ -53,7 +53,7 @@ enum RMSMeter {
 /// Thread-safety: `noteLevel(_:)` may be called from any thread; `lastLoud` is guarded by
 /// an `OSAllocatedUnfairLock`. The internal poll timer runs on the main run loop, and
 /// `onTimeout` is therefore always invoked on MAIN (per the contract).
-final class SilenceMonitor {
+public final class SilenceMonitor {
 
     /// dBFS threshold above which the signal counts as "loud" (resets the silence clock).
     var thresholdDB: Float
@@ -74,18 +74,26 @@ final class SilenceMonitor {
 
     /// How often the silence window is evaluated. Coarse on purpose — the actual silence
     /// decision is based on wall-clock deltas from `lastLoud`, not on tick count.
-    private let pollInterval: TimeInterval = 5
+    private let pollInterval: TimeInterval
 
     /// - Parameter onTimeout: invoked on MAIN when silence has persisted for `timeout`.
-    init(thresholdDB: Float, timeout: TimeInterval, onTimeout: @escaping () -> Void) {
+    /// - Parameter pollInterval: how often to evaluate the window. Tests pass a short
+    ///   interval; production uses the 5-second default.
+    public init(
+        thresholdDB: Float,
+        timeout: TimeInterval,
+        pollInterval: TimeInterval = 5,
+        onTimeout: @escaping () -> Void
+    ) {
         self.thresholdDB = thresholdDB
         self.timeout = timeout
+        self.pollInterval = pollInterval
         self.onTimeout = onTimeout
     }
 
     /// Feed one dBFS reading. If it's above the threshold, the signal is "loud" and the
     /// silence clock resets to now. Thread-safe; cheap enough to call per buffer.
-    func noteLevel(_ db: Float) {
+    public func noteLevel(_ db: Float) {
         guard db > thresholdDB else { return }
         let now = Date()
         lock.withLock { $0 = now }
@@ -93,7 +101,7 @@ final class SilenceMonitor {
 
     /// Begin (or restart) the silence watch: reset the clock to now and start the poll
     /// timer on the main run loop. Safe to call again to re-arm after a pause.
-    func start() {
+    public func start() {
         // Reset the clock so a fresh window begins (e.g. after resuming from pause).
         let now = Date()
         lock.withLock { $0 = now }
@@ -109,7 +117,7 @@ final class SilenceMonitor {
     }
 
     /// Stop watching and tear down the timer. Idempotent.
-    func stop() {
+    public func stop() {
         ticker?.invalidate()
         ticker = nil
     }

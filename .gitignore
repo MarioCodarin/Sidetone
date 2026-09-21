@@ -4,6 +4,7 @@
 Package.resolved
 
 # Assembled app bundle (produced by ./build.sh)
+Sidetone.app/
 Recorder.app/
 
 # macOS
@@ -20,7 +21,9 @@ Recordings/
 *.caf
 *.m4a
 
-# Icon build scratch (icon.swift + Recorder.icns are committed; these are regenerable)
+# Icon build scratch
 icon-work/
+Sidetone.iconset/
 Recorder.iconset/
+Sidetone-1024.png
 Recorder-1024.png

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Build & bundle the Recorder menu-bar app as a signed .app
+# Build & bundle the Sidetone menu-bar app as a signed .app
 # Run from the repo root.
 #
 # Signing identity: set CODESIGN_IDENTITY to a certificate name (e.g.
@@ -13,7 +13,7 @@ set -e
 
 cd "$(dirname "$0")"
 
-APP="Recorder.app"
+APP="Sidetone.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
@@ -27,14 +27,16 @@ rm -rf "$APP"
 mkdir -p "$MACOS"
 mkdir -p "$RESOURCES"
 
-cp ".build/release/Recorder" "$MACOS/Recorder"
+cp ".build/release/Sidetone" "$MACOS/Sidetone"
 cp "Info.plist" "$CONTENTS/Info.plist"
 
-# App icon (built from icon.swift via make-icon.sh). Optional: skip if absent.
-if [ -f "Recorder.icns" ]; then
-    cp "Recorder.icns" "$RESOURCES/Recorder.icns"
+# App icon (built from Assets/icon.swift via make-icon.sh). Optional: skip if absent.
+if [ -f "Assets/Sidetone.icns" ]; then
+    cp "Assets/Sidetone.icns" "$RESOURCES/Sidetone.icns"
+elif [ -f "Sidetone.icns" ]; then
+    cp "Sidetone.icns" "$RESOURCES/Sidetone.icns"
 else
-    echo "    (no Recorder.icns — run ./make-icon.sh to generate it)"
+    echo "    (no Sidetone.icns — run ./make-icon.sh to generate it)"
 fi
 
 # PkgInfo: 4-char type + 4-char creator
@@ -45,6 +47,6 @@ if [ "$IDENTITY" = "-" ]; then
 else
     echo "==> codesign (\"$IDENTITY\", non-sandboxed entitlements)"
 fi
-codesign --force --sign "$IDENTITY" --entitlements "Recorder.entitlements" "$APP"
+codesign --force --sign "$IDENTITY" --entitlements "Sidetone.entitlements" "$APP"
 
 echo "done"

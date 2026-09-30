@@ -1,46 +1,5 @@
 import Foundation
-import AVFoundation
-import Accelerate
-
-// MARK: - RMSMeter
-
-/// Computes a per-buffer RMS level in dBFS from an audio buffer's first channel.
-///
-/// Cheap enough to run on the real-time audio thread (the capture classes call this
-/// inside their tap/IOProc callbacks). Uses Accelerate's `vDSP_rmsqv` for a vectorized
-/// root-mean-square over `frameLength` samples of channel 0, then converts to dBFS.
-public enum RMSMeter {
-
-    /// Floor for the returned level. Truly-silent or invalid buffers report this value
-    /// so callers (meters, silence detection) get a stable, finite "very quiet" reading.
-    public static let floorDB: Float = -120
-
-    /// RMS of `buffer`'s channel 0 expressed in dBFS.
-    ///
-    /// - Returns `20 * log10(rms)` clamped to a floor of `-120` dBFS.
-    ///   Returns the floor for empty buffers, non-float buffers, or RMS == 0.
-    public static func dBFS(_ buffer: AVAudioPCMBuffer) -> Float {
-        // Requires deinterleaved Float32 samples. Both capture sources write mono
-        // Float32, so channel 0 always carries the signal.
-        guard let channels = buffer.floatChannelData else { return floorDB }
-
-        let frameCount = vDSP_Length(buffer.frameLength)
-        guard frameCount > 0 else { return floorDB }
-
-        // Vectorized RMS over channel 0 (stride 1 == contiguous, non-interleaved).
-        var rms: Float = 0
-        vDSP_rmsqv(channels[0], 1, &rms, frameCount)
-
-        // log10(0) is -inf; guard against it (and against NaN from a bad buffer)
-        // by flooring below an effectively-silent amplitude (1e-7 ≈ -140 dBFS).
-        guard rms > 1e-7, rms.isFinite else { return floorDB }
-
-        let db = 20 * log10(rms)
-        return db.isFinite ? max(db, floorDB) : floorDB
-    }
-}
-
-// MARK: - SilenceMonitor
+import os
 
 /// Watches the audio level stream and fires `onTimeout` once the signal has stayed
 /// below `thresholdDB` for `timeout` seconds continuously.

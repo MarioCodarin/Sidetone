@@ -12,10 +12,20 @@ public struct RecordingEntry: Identifiable, Equatable {
     /// audio.m4a, if it exists.
     public let audioURL: URL?
 
+    public init(folderURL: URL, title: String?, date: Date, audioURL: URL?) {
+        self.folderURL = folderURL
+        self.title = title
+        self.date = date
+        self.audioURL = audioURL
+    }
+
     public var displayTitle: String {
         if let title, !title.isEmpty { return title }
         return "Recording"
     }
+
+    /// Raw captures exist but the stereo mix does not (crash, quit mid-mix, failed mix).
+    public var needsMix: Bool { audioURL == nil }
 }
 
 /// Reads the on-disk recordings library so the panel can show prior recordings
@@ -50,10 +60,10 @@ public enum RecordingsLibrary {
             ])
             guard values?.isDirectory == true else { return nil }
 
-            let audio = url.appendingPathComponent("audio.m4a")
+            let audio = url.appendingPathComponent(RecordingFiles.mix)
             let hasAudio = fm.fileExists(atPath: audio.path)
-            let hasRaw = fm.fileExists(atPath: url.appendingPathComponent("desktop.caf").path)
-                || fm.fileExists(atPath: url.appendingPathComponent("mic.caf").path)
+            let hasRaw = fm.fileExists(atPath: url.appendingPathComponent(RecordingFiles.desktop).path)
+                || fm.fileExists(atPath: url.appendingPathComponent(RecordingFiles.mic).path)
             // Only surface folders that actually look like recordings.
             guard hasAudio || hasRaw else { return nil }
 

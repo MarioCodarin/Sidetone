@@ -35,6 +35,7 @@ mic right**, the channels stay cleanly separated:
   (default 5 min).
 - **Meeting-end notification** with a "Stop Recording" action when a meeting's scheduled end
   passes while you're still recording.
+- **Safe to quit / crash**: quitting mid-recording saves it; an unmixed folder offers **Mix now**.
 - **System-audio watchdog** that rebuilds the Core Audio tap if macOS's known process-tap
   regression makes it go silent mid-recording.
 
@@ -97,6 +98,7 @@ Recordings land in `~/Documents/Recordings/{YYYY-M-D}-{HHMM}[-{meeting}]/`:
 ```
 desktop.caf    raw mono system audio  (flushed continuously while recording)
 mic.caf        raw mono microphone    (flushed continuously while recording)
+session.json   alignment data, used to re-mix if the mix failed or was interrupted
 audio.m4a      stereo AAC mix — desktop = L, mic = R (produced on Save; raw files kept)
 ```
 
@@ -107,10 +109,13 @@ CAF (not WAV) is used for the raw files so long meetings don't hit the 4 GB WAV 
 ## Project structure
 
 ```
-Sources/SidetoneCore/        testable library (capture, mix, model, library)
-Sources/Sidetone/            menu-bar app (SwiftUI panel + preferences)
-Tests/SidetoneCoreTests/     Swift Testing, no hardware
+Sources/SidetoneCore/        domain, ports (protocols), SidetoneModel state machine (no system frameworks)
+Sources/SidetoneAudio/       capture (system tap, mic), file writer, ring buffer, streaming stereo mixer
+Sources/SidetoneServices/    EventKit, notifications, permissions, AppKit actions
+Sources/Sidetone/            menu-bar app: composition root + SwiftUI views
+Tests/SidetoneCheck/         hardware-free checks (`swift run SidetoneCheck`)
 Assets/                      icon.swift + Sidetone.icns
+docs/ARCHITECTURE.md         modules, recording flow, threading model
 ```
 
 ---

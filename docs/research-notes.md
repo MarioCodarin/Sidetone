@@ -1,3 +1,8 @@
+> **Historical.** Pre-implementation research from when the project was called "Recorder". Some
+> decisions here were reversed: the final mix is AAC `.m4a` via AVFoundation (no ffmpeg / `.ogg`),
+> and the app is now split into `SidetoneCore` / `SidetoneAudio` / `SidetoneServices`. For the
+> current design see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 # Research notes (SDK-verified, macOS 26.3 / Xcode 26.4)
 
 ## Synthesis (architecture decisions)

@@ -1,15 +1,17 @@
 import Foundation
 import UserNotifications
-import AppKit
+import SidetoneCore
 
-/// UserNotifications wrapper for the menu-bar recorder.
+/// UserNotifications-backed `MeetingAlerting`.
 ///
 /// Owns a self-contained `UNUserNotificationCenterDelegate` (a private inner
 /// `NSObject`) so the manager stays fully self-contained: it does not rely on
 /// the AppDelegate for any notification wiring.
 ///
 /// Responsibilities:
-///   * Register the "RECORDING" category with a "STOP" action ("Stop Recording").
+///   * Register the "RECORDING" category with a "STOP" action ("Stop Recording"). Only that
+///     action stops the recording; tapping the banner body just dismisses it, so a stray click
+///     can't end a meeting recording.
 ///   * Request `[.alert, .sound]` authorization (delegate is set FIRST).
 ///   * Present banners while the accessory app is "active" (`willPresent`).
 ///   * Schedule / cancel the one-shot "meeting ended — still recording" alert.
@@ -17,7 +19,7 @@ import AppKit
 /// The app must be code-signed (ad-hoc is fine) with a stable bundle id, or the
 /// authorization prompt never appears and notifications are silently dropped.
 @MainActor
-final class NotificationManager {
+public final class NotificationManager: MeetingAlerting {
 
     // MARK: - Identifiers
 
@@ -32,9 +34,10 @@ final class NotificationManager {
 
     // MARK: - Public API
 
-    /// Fired when the user taps the "Stop Recording" action (or taps the
-    /// notification body). Always delivered on the main actor.
-    var onStopRequested: (() -> Void)?
+    /// Fired when the user taps the "Stop Recording" action. Always delivered on the main actor.
+    public var onStopRequested: (() -> Void)?
+
+    public init() {}
 
     // MARK: - Delegate
 
@@ -47,7 +50,7 @@ final class NotificationManager {
     /// Wire the delegate, register the "RECORDING" category, then request
     /// authorization. The delegate MUST be assigned before requesting so that
     /// `willPresent` / `didReceive` callbacks are never missed.
-    func requestAuthorization() async {
+    public func requestAuthorization() async {
         let center = UNUserNotificationCenter.current()
 
         // Bridge the inner delegate's "stop" tap back to this manager (main).
@@ -59,12 +62,10 @@ final class NotificationManager {
         center.delegate = delegate
 
         // 2. Register the "RECORDING" category with its "STOP" action.
-        //    `.foreground` brings the app forward when tapped, which pairs with
-        //    the delegate activating the app before invoking the stop handler.
         let stopAction = UNNotificationAction(
             identifier: Self.stopActionIdentifier,
             title: "Stop Recording",
-            options: [.foreground]
+            options: []
         )
         let category = UNNotificationCategory(
             identifier: Self.categoryIdentifier,
@@ -92,7 +93,7 @@ final class NotificationManager {
     ///
     /// Uses a single fixed request id ("meeting-end"), so scheduling again
     /// replaces any previously scheduled alert.
-    func scheduleMeetingEndAlert(at endDate: Date, meetingTitle: String) {
+    public func scheduleMeetingEndAlert(at endDate: Date, meetingTitle: String) {
         let center = UNUserNotificationCenter.current()
 
         let content = UNMutableNotificationContent()
@@ -120,7 +121,7 @@ final class NotificationManager {
     }
 
     /// Remove the pending meeting-end alert (if any).
-    func cancelMeetingEndAlert() {
+    public func cancelMeetingEndAlert() {
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: [Self.meetingEndRequestIdentifier])
     }
@@ -133,8 +134,7 @@ final class NotificationManager {
     /// protocol-conformance friction.
     private final class Delegate: NSObject, UNUserNotificationCenterDelegate {
 
-        /// Invoked on the MAIN thread when the user requests a stop (taps the
-        /// "STOP" action or the notification body).
+        /// Invoked on the MAIN thread when the user taps the "STOP" action.
         var onStopRequested: (() -> Void)?
 
         /// Present the banner + sound even though the accessory ("foreground")
@@ -146,19 +146,15 @@ final class NotificationManager {
             [.banner, .sound]
         }
 
-        /// Handle a tap on the "STOP" action or the notification itself.
+        /// Handle a tap on the "STOP" action. Tapping the banner body does nothing.
         func userNotificationCenter(
             _ center: UNUserNotificationCenter,
             didReceive response: UNNotificationResponse
         ) async {
-            let isStop = response.actionIdentifier == NotificationManager.stopActionIdentifier
-            let isDefault = response.actionIdentifier == UNNotificationDefaultActionIdentifier
-            guard isStop || isDefault else { return }
+            guard response.actionIdentifier == NotificationManager.stopActionIdentifier else { return }
 
-            // Bring the menu-bar app forward, then fire the stop handler — both
-            // on the main actor (the model performs the actual save/stop).
+            // The model performs the actual save/stop, on the main actor.
             await MainActor.run {
-                NSApp.activate(ignoringOtherApps: true)
                 self.onStopRequested?()
             }
         }

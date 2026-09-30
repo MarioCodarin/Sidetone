@@ -33,6 +33,8 @@ struct PreferencesView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Slider(value: $model.silenceThresholdDB, in: -80 ... -20, step: 1)
+                            .accessibilityLabel("Silence threshold")
+                            .accessibilityValue("\(Int(model.silenceThresholdDB)) decibels")
                         Text("A channel counts as silent below this level. Lower = more tolerant of quiet rooms.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -43,6 +45,7 @@ struct PreferencesView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 280)
+        .frame(width: 420)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

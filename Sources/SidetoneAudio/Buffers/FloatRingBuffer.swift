@@ -39,6 +39,11 @@ public final class FloatRingBuffer: @unchecked Sendable {
     /// Expected to stay 0 in practice (the buffer holds several seconds).
     public var totalDropped: Int { droppedFrames.load(ordering: .relaxed) }
 
+    /// Frames written but not yet read. Safe from either side; approximate while both are running.
+    public var availableFrames: Int {
+        writeIndex.load(ordering: .acquiring) - readIndex.load(ordering: .acquiring)
+    }
+
     /// Producer side (realtime thread). Copies `count` frames from `src`. If
     /// there isn't room for the whole chunk it drops it (recording the loss)
     /// rather than tearing it — a partial write would itself be a glitch.

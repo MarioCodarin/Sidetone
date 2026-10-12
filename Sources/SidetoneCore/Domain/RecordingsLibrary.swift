@@ -1,8 +1,10 @@
 import Foundation
+import AVFoundation
 
-/// One past recording on disk (a folder under ~/Documents/Recordings).
+/// One past recording on disk. A finished take is a single `.m4a` in ~/Documents/Recordings.
+/// A take that never finished mixing is still the working folder.
 public struct RecordingEntry: Identifiable, Equatable {
-    /// Folder path — stable identity.
+    /// File path for a finished mix, folder path for one that still needs mixing.
     public var id: String { folderURL.path }
     public let folderURL: URL
     /// Parsed meeting title (nil for ad-hoc recordings).
@@ -11,12 +13,15 @@ public struct RecordingEntry: Identifiable, Equatable {
     public let date: Date
     /// audio.m4a, if it exists.
     public let audioURL: URL?
+    /// Length in seconds. From `session.json` while the take is still a folder, otherwise from the m4a.
+    public let duration: TimeInterval?
 
-    public init(folderURL: URL, title: String?, date: Date, audioURL: URL?) {
+    public init(folderURL: URL, title: String?, date: Date, audioURL: URL?, duration: TimeInterval? = nil) {
         self.folderURL = folderURL
         self.title = title
         self.date = date
         self.audioURL = audioURL
+        self.duration = duration
     }
 
     public var displayTitle: String {
@@ -40,7 +45,8 @@ public enum RecordingsLibrary {
         return documents.appendingPathComponent("Recordings", isDirectory: true)
     }
 
-    /// The `limit` most recent recording folders, newest first.
+    /// The `limit` most recent recordings, newest first. Finished takes are `.m4a` files;
+    /// a take that still needs mixing is its working folder.
     ///
     /// - Parameter root: override for tests. `nil` uses `recordingsRoot()`.
     public static func recent(limit: Int, root: URL? = nil) -> [RecordingEntry] {
@@ -58,24 +64,10 @@ public enum RecordingsLibrary {
             let values = try? url.resourceValues(forKeys: [
                 .isDirectoryKey, .creationDateKey, .contentModificationDateKey,
             ])
-            guard values?.isDirectory == true else { return nil }
-
-            let audio = url.appendingPathComponent(RecordingFiles.mix)
-            let hasAudio = fm.fileExists(atPath: audio.path)
-            let hasRaw = fm.fileExists(atPath: url.appendingPathComponent(RecordingFiles.desktop).path)
-                || fm.fileExists(atPath: url.appendingPathComponent(RecordingFiles.mic).path)
-            // Only surface folders that actually look like recordings.
-            guard hasAudio || hasRaw else { return nil }
-
-            let (parsedDate, title) = parseFolderName(url.lastPathComponent)
-            let fileDate = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
-
-            return RecordingEntry(
-                folderURL: url,
-                title: title,
-                date: parsedDate ?? fileDate,
-                audioURL: hasAudio ? audio : nil
-            )
+            if values?.isDirectory == true {
+                return folderEntry(url, values: values, fm: fm)
+            }
+            return fileEntry(url, values: values)
         }
 
         return Array(entries.sorted { $0.date > $1.date }.prefix(limit))
@@ -106,5 +98,60 @@ public enum RecordingsLibrary {
         }
         let title = titleParts.joined(separator: " ").trimmingCharacters(in: .whitespaces)
         return (date, title.isEmpty ? nil : title)
+    }
+
+    private static func folderEntry(_ url: URL, values: URLResourceValues?, fm: FileManager) -> RecordingEntry? {
+        let audio = url.appendingPathComponent(RecordingFiles.mix)
+        let hasAudio = fm.fileExists(atPath: audio.path)
+        let hasRaw = fm.fileExists(atPath: url.appendingPathComponent(RecordingFiles.desktop).path)
+            || fm.fileExists(atPath: url.appendingPathComponent(RecordingFiles.mic).path)
+        // A folder that only holds a transcript, or anything else, is not a recording.
+        guard hasAudio || hasRaw else { return nil }
+
+        let (parsedDate, title) = parseFolderName(url.lastPathComponent)
+        let fileDate = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
+        let fromSession = SessionInfo.read(fromFolder: url).flatMap(duration(of:))
+
+        return RecordingEntry(
+            folderURL: url,
+            title: title,
+            date: parsedDate ?? fileDate,
+            audioURL: hasAudio ? audio : nil,
+            duration: fromSession ?? (hasAudio ? duration(ofAudio: audio) : nil)
+        )
+    }
+
+    private static func fileEntry(_ url: URL, values: URLResourceValues?) -> RecordingEntry? {
+        guard url.pathExtension.lowercased() == "m4a",
+              url.lastPathComponent != "audio-partial.m4a" else { return nil }
+
+        let (parsedDate, title) = parseFolderName(url.deletingPathExtension().lastPathComponent)
+        let fileDate = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
+        return RecordingEntry(
+            folderURL: url,
+            title: title,
+            date: parsedDate ?? fileDate,
+            audioURL: url,
+            duration: duration(ofAudio: url)
+        )
+    }
+
+    /// Header-only read. Nil when the file is missing, not audio, or empty.
+    static func duration(ofAudio url: URL) -> TimeInterval? {
+        guard let file = try? AVAudioFile(forReading: url) else { return nil }
+        let rate = file.fileFormat.sampleRate
+        guard rate > 0, file.length > 0 else { return nil }
+        return TimeInterval(file.length) / rate
+    }
+
+    /// Longer of the two captures. A channel with no rate is ignored (nothing was written).
+    private static func duration(of info: SessionInfo) -> TimeInterval? {
+        let longest = max(seconds(info.desktop), seconds(info.mic))
+        return longest > 0 ? longest : nil
+    }
+
+    private static func seconds(_ capture: CaptureResult) -> TimeInterval {
+        guard capture.sampleRate > 0 else { return 0 }
+        return TimeInterval(capture.frameCount) / capture.sampleRate
     }
 }

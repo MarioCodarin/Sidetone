@@ -26,6 +26,8 @@ public final class SidetoneModel {
     public private(set) var recentRecordings: [RecordingEntry] = []
     /// Number of mixes currently running in the background.
     public private(set) var mixesInFlight = 0
+    /// Meeting this capture is tagged with. Nil for an ad-hoc recording, and whenever idle.
+    public private(set) var recordingTitle: String?
     private var permissionIssueSet: Set<PermissionIssue> = []
 
     /// Permissions the user has to grant, in a stable order.
@@ -52,7 +54,6 @@ public final class SidetoneModel {
 
     @ObservationIgnored private let deps: SidetoneDependencies
     @ObservationIgnored private var currentSession: RecordingSession?
-    @ObservationIgnored private var currentMeetingTitle: String?
     @ObservationIgnored private var silenceMonitor: SilenceMonitor?
     @ObservationIgnored private var elapsedTimer: Timer?
     /// Recorded time banked before the current run of `.recording` began.
@@ -182,7 +183,7 @@ public final class SidetoneModel {
         }
 
         currentSession = session
-        currentMeetingTitle = meeting?.title
+        recordingTitle = meeting?.title
         setIssue(.systemAudio, active: false)
         silenceMonitor?.start()
 
@@ -215,7 +216,8 @@ public final class SidetoneModel {
         }
     }
 
-    /// Stop both captures and mix them in the background. Raw files are always kept.
+    /// Stop both captures and mix them in the background. A readable mix becomes a single
+    /// `{name}.m4a` and the working files are deleted. They stay only when the mix fails.
     ///
     /// - Parameter note: prefix for the final "Saved …" message (e.g. why it auto-stopped).
     public func saveAndStop(note: String = "") {
@@ -226,7 +228,7 @@ public final class SidetoneModel {
 
         let desktopResult = deps.desktop.stop()
         let micResult = deps.mic.stop()
-        let title = currentMeetingTitle
+        let title = recordingTitle
         finishCaptureSession()
 
         // Persist alignment data before mixing so a crash mid-mix is still recoverable.
@@ -236,10 +238,11 @@ public final class SidetoneModel {
         )
         try? info.write(toFolder: session.folderURL)
 
+        let savedName = title.flatMap { $0.isEmpty ? nil : $0 } ?? "recording"
         startMix(
             desktopURL: session.desktopURL, micURL: session.micURL,
             desktopResult: desktopResult, micResult: micResult,
-            outputURL: session.outputURL, note: note
+            outputURL: session.outputURL, note: note, savedName: savedName
         )
     }
 
@@ -271,7 +274,7 @@ public final class SidetoneModel {
             desktopResult: info?.desktop ?? CaptureResult(),
             micResult: info?.mic ?? CaptureResult(),
             outputURL: folder.appendingPathComponent(RecordingFiles.mix),
-            note: ""
+            note: "", savedName: entry.displayTitle
         )
     }
 
@@ -297,6 +300,9 @@ public final class SidetoneModel {
     }
 
     public func refreshRecordings() {
+        if let root = deps.recordingsRoot ?? RecordingsLibrary.recordingsRoot() {
+            RecordingOutput.promoteFinishedFolders(in: root)
+        }
         recentRecordings = RecordingsLibrary.recent(limit: Self.recentLimit, root: deps.recordingsRoot)
     }
 
@@ -342,7 +348,7 @@ public final class SidetoneModel {
     private func startMix(
         desktopURL: URL, micURL: URL,
         desktopResult: CaptureResult, micResult: CaptureResult,
-        outputURL: URL, note: String
+        outputURL: URL, note: String, savedName: String
     ) {
         // A second click on "Re-mix" while the first is still running would race on the output file.
         guard mixingOutputs.insert(outputURL).inserted else { return }
@@ -369,7 +375,8 @@ public final class SidetoneModel {
             self.mixesInFlight -= 1
             switch outcome {
             case .success:
-                self.post("\(note)Saved \(outputURL.deletingLastPathComponent().lastPathComponent)", kind: .success)
+                _ = RecordingOutput.promote(folder: outputURL.deletingLastPathComponent())
+                self.post("\(note)Saved \(savedName)", kind: .success)
             case .failure(let error):
                 self.post("Mix failed (raw files kept): \(error.localizedDescription)", kind: .error)
             }
@@ -463,7 +470,7 @@ public final class SidetoneModel {
         desktopLevel = 0
         micLevel = 0
         currentSession = nil
-        currentMeetingTitle = nil
+        recordingTitle = nil
     }
 
     private func resetToIdle() {

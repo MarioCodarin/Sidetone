@@ -24,8 +24,9 @@ record / pause / save / discard / re-mix / quit flow with fakes.
 1. `startRecording` creates `~/Documents/Recordings/{yyyy-M-d}-{HHmm}[-title][-N]/` and starts both captures.
 2. Each capture streams mono Float32 to its own CAF (`desktop.caf`, `mic.caf`).
 3. `saveAndStop` stops both, writes `session.json` (each capture's first host time, rate, frame count),
-   then mixes in the background into `audio.m4a`. Raw files are always kept.
-4. If the mix fails or the app dies, the folder shows as "Not mixed" and **Mix now** rebuilds it from `session.json`.
+   then mixes in the background into `audio.m4a`. When that file is a readable mix, it is moved
+   out to `{folder}.m4a` and the working files are deleted.
+4. If the mix fails or the app dies first, the folder stays and **Mix now** rebuilds it from `session.json`.
 
 ## Threading model
 

@@ -194,6 +194,23 @@ func runModelChecks() throws {
         expectEqual(rig.mixer.calls.first?.mic.firstHostTime, 900, "mixer got the mic result")
         expectEqual(rig.model.recentRecordings.first?.needsMix, false, "saved recording has audio")
         expectEqual(rig.model.status?.kind, .success, "success status after mix")
+        expect(rig.model.status?.text == "Saved recording", "untitled save names the recording, not the folder")
+    }
+
+    // A meeting title is what the panel and the "Saved …" line show — not the folder slug.
+    try withRig { rig in
+        let start = rig.clock.now
+        let meeting = Meeting(id: "rdb", title: "RdB", start: start.addingTimeInterval(-60), end: start.addingTimeInterval(3600))
+        rig.model.startRecording(meeting: meeting)
+        expect(rig.model.recordingTitle == "RdB", "recording title while capturing")
+        let folderName = rig.desktop.startedURL!.deletingLastPathComponent().lastPathComponent
+        rig.model.saveAndStop()
+        expect(rig.model.recordingTitle == nil, "title clears when the capture ends")
+
+        expect(waitUntil { rig.model.mixesInFlight == 0 && rig.model.status?.kind == .success },
+               "titled mix completes")
+        expect(rig.model.status?.text == "Saved RdB", "status names the meeting")
+        expect(rig.model.status?.text.contains(folderName) == false, "status omits the folder name")
     }
 
     // Discard deletes the folder.

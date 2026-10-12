@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import SidetoneCore
 
 /// Record (idle) or Pause / Save / Discard (recording, paused).
@@ -6,6 +7,11 @@ struct ControlsView: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
+        controls
+    }
+
+    @ViewBuilder
+    private var controls: some View {
         switch model.state {
         case .idle:
             idleControls
@@ -81,7 +87,7 @@ struct ControlsView: View {
             .tint(.blue)
 
             Button(role: .destructive) {
-                model.trashAndStop()
+                confirmDiscard()
             } label: {
                 Label("Discard", systemImage: "trash")
                     .labelStyle(.iconOnly)
@@ -90,6 +96,24 @@ struct ControlsView: View {
             .buttonStyle(.bordered)
             .tint(.red)
             .help("Discard this recording")
+        }
+    }
+
+    /// A sheet on the menu-bar window. `confirmationDialog` does not present reliably there.
+    private func confirmDiscard() {
+        let alert = NSAlert()
+        alert.messageText = "Discard this recording?"
+        alert.informativeText = "The recording in progress will be deleted."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Discard")
+        alert.addButton(withTitle: "Keep Recording")
+        alert.buttons.first?.hasDestructiveAction = true
+
+        guard let window = NSApp.keyWindow else { return }
+        alert.beginSheetModal(for: window) { response in
+            if response == .alertFirstButtonReturn {
+                model.trashAndStop()
+            }
         }
     }
 }

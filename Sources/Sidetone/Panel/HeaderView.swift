@@ -17,6 +17,14 @@ struct HeaderView: View {
                 Text(model.state.label)
                     .font(.headline)
 
+                if let title = model.recordingTitle, !title.isEmpty {
+                    Text(title)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+
                 if let status = model.status {
                     Text(status.text)
                         .font(.caption)

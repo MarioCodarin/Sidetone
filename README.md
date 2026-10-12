@@ -19,7 +19,8 @@ mic right**, the channels stay cleanly separated:
 
 - You can mute/solo either side in any audio editor.
 - A crash loses at most a fraction of a second: each source is written to its **own raw
-  file continuously**, and the stereo mix is produced only when you hit Save.
+  file continuously**, and the stereo mix is produced when you hit Save. Once that mix is
+  a complete file, only the `.m4a` is kept.
 
 ---
 
@@ -36,6 +37,7 @@ mic right**, the channels stay cleanly separated:
 - **Meeting-end notification** with a "Stop Recording" action when a meeting's scheduled end
   passes while you're still recording.
 - **Safe to quit / crash**: quitting mid-recording saves it; an unmixed folder offers **Mix now**.
+  A finished recording is a single `.m4a`.
 - **System-audio watchdog** that rebuilds the Core Audio tap if macOS's known process-tap
   regression makes it go silent mid-recording.
 
@@ -93,16 +95,25 @@ Granted on first use via standard system prompts (declared in `Info.plist`):
 
 ## File layout
 
-Recordings land in `~/Documents/Recordings/{YYYY-M-D}-{HHMM}[-{meeting}]/`:
+While a take is in progress it is a working folder,
+`~/Documents/Recordings/{YYYY-M-D}-{HHMM}[-{meeting}]/`:
 
 ```
 desktop.caf    raw mono system audio  (flushed continuously while recording)
 mic.caf        raw mono microphone    (flushed continuously while recording)
 session.json   alignment data, used to re-mix if the mix failed or was interrupted
-audio.m4a      stereo AAC mix — desktop = L, mic = R (produced on Save; raw files kept)
 ```
 
-CAF (not WAV) is used for the raw files so long meetings don't hit the 4 GB WAV ceiling.
+When the mix succeeds, that folder is replaced by one file next to it:
+
+```
+{YYYY-M-D}-{HHMM}[-{meeting}].m4a    stereo AAC — desktop = L, mic = R
+```
+
+The raw files are deleted only after that `.m4a` is a readable audio file. If the mix fails,
+the folder stays and the panel offers **Mix now**. A file you added yourself (for example a
+transcript) is left in the folder. CAF (not WAV) is used for the raw files so a long meeting
+does not hit the 4 GB WAV ceiling while it is still being captured.
 
 ---
 

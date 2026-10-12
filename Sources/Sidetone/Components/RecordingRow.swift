@@ -1,35 +1,38 @@
 import SwiftUI
 import SidetoneCore
 
-/// One past recording. Drag the row to pull the audio file out; double-click to open it;
-/// the ⋯ menu has copy / reveal / re-mix.
+/// One past recording. Click the row to open the stereo mix, or to mix it if that never
+/// finished. The ⋯ menu copies or reveals that same file.
 struct RecordingRow: View {
     @Environment(SidetoneModel.self) private var model
     let entry: RecordingEntry
 
     var body: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: entry.needsMix ? "exclamationmark.circle.fill" : "waveform.circle.fill")
-                    .foregroundStyle(entry.needsMix ? Color.orange : Color.secondary)
-                    .accessibilityHidden(true)
+            Button(action: open) {
+                HStack(spacing: 8) {
+                    Image(systemName: entry.needsMix ? "exclamationmark.circle.fill" : "waveform.circle.fill")
+                        .foregroundStyle(entry.needsMix ? Color.orange : Color.secondary)
+                        .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(entry.displayTitle)
-                        .font(.callout)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Text("\(entry.date, format: .dateTime.month(.abbreviated).day().hour().minute()) · \(entry.needsMix ? "Not mixed" : "Audio")")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(entry.displayTitle)
+                            .font(.callout)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Text(subtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 4)
                 }
-
-                Spacer(minLength: 4)
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
-            .onDrag { dragProvider }
-            .onTapGesture(count: 2) { open() }
-            .help(entry.audioURL == nil ? "Not mixed yet — use ⋯ → Mix now" : "Double-click to open · drag the audio out")
+            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .help(entry.audioURL == nil ? "Not mixed yet — click to mix" : "Open the stereo mix")
 
             Menu {
                 if let audio = entry.audioURL {
@@ -45,7 +48,7 @@ struct RecordingRow: View {
                     }
                 }
                 Divider()
-                Button { model.reveal(entry.folderURL) } label: {
+                Button { model.reveal(entry.audioURL ?? entry.folderURL) } label: {
                     Label("Reveal in Finder", systemImage: "folder")
                 }
             } label: {
@@ -65,11 +68,19 @@ struct RecordingRow: View {
         )
     }
 
-    private var dragProvider: NSItemProvider {
-        entry.audioURL.flatMap { NSItemProvider(contentsOf: $0) } ?? NSItemProvider()
+    /// Date, then either the length or "Not mixed".
+    private var subtitle: String {
+        let when = entry.date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+        if entry.needsMix { return "\(when) · Not mixed" }
+        if let duration = entry.duration { return "\(when) · \(Formatting.elapsed(duration))" }
+        return when
     }
 
     private func open() {
-        model.open(entry.audioURL ?? entry.folderURL)
+        if let audio = entry.audioURL {
+            model.open(audio)
+        } else {
+            model.remix(entry)
+        }
     }
 }

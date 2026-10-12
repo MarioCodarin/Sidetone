@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import SidetoneCore
 
 /// Pure-domain checks: naming, meeting windowing, library parsing, session files, prefs.
@@ -66,6 +67,13 @@ func runCoreChecks() throws {
         let mixed = root.appendingPathComponent("2026-9-21-1721-RdB", isDirectory: true)
         try fm.createDirectory(at: mixed, withIntermediateDirectories: true)
         fm.createFile(atPath: mixed.appendingPathComponent(RecordingFiles.mix).path, contents: Data([0]))
+        // Desktop is 2 s. Mic has no sample rate, so its frame count must not win.
+        let info = SessionInfo(
+            startedAt: Date(timeIntervalSince1970: 0), meetingTitle: "RdB",
+            desktop: CaptureResult(firstHostTime: 1, sampleRate: 48_000, frameCount: 96_000),
+            mic: CaptureResult(firstHostTime: 1, sampleRate: 0, frameCount: 9_000_000)
+        )
+        try info.write(toFolder: mixed)
 
         let rawOnly = root.appendingPathComponent("2026-9-22-0900", isDirectory: true)
         try fm.createDirectory(at: rawOnly, withIntermediateDirectories: true)
@@ -81,6 +89,8 @@ func runCoreChecks() throws {
         expect(entries.first?.needsMix == true, "newest (raw only) needsMix")
         expect(entries.last?.needsMix == false, "mixed entry does not need mix")
         expectEqual(entries.last?.title, "RdB", "library title")
+        expectEqual(entries.last?.duration, Optional(2.0), "duration is the longer capture")
+        expectEqual(entries.first?.duration, nil as TimeInterval?, "no session.json → no duration")
         expectEqual(RecordingsLibrary.recent(limit: 1, root: root).count, 1, "library limit")
     }
 
@@ -108,6 +118,52 @@ func runCoreChecks() throws {
         try info.write(toFolder: first.folderURL)
         expectEqual(SessionInfo.read(fromFolder: first.folderURL), info, "session.json round-trip")
         expect(SessionInfo.read(fromFolder: second.folderURL) == nil, "session.json missing → nil")
+    }
+
+    // A complete mix becomes one m4a. An unreadable mix keeps the working files.
+    do {
+        let root = try makeTempDir("promote")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+
+        let done = root.appendingPathComponent("2026-10-12-1817-RdB", isDirectory: true)
+        try fm.createDirectory(at: done, withIntermediateDirectories: true)
+        try writeSilentM4A(done.appendingPathComponent(RecordingFiles.mix))
+        fm.createFile(atPath: done.appendingPathComponent(RecordingFiles.desktop).path, contents: Data([1]))
+        fm.createFile(atPath: done.appendingPathComponent(RecordingFiles.mic).path, contents: Data([1]))
+        fm.createFile(atPath: done.appendingPathComponent(RecordingFiles.info).path, contents: Data([1]))
+        fm.createFile(atPath: done.appendingPathComponent("audio.txt").path, contents: Data("notes".utf8))
+
+        let promoted = RecordingOutput.promote(folder: done)
+        let m4a = root.appendingPathComponent("2026-10-12-1817-RdB.m4a")
+        expect(promoted == m4a, "promote returns the single m4a")
+        expect(fm.fileExists(atPath: m4a.path), "m4a sits beside the folder")
+        expect(!fm.fileExists(atPath: done.appendingPathComponent(RecordingFiles.desktop).path), "desktop.caf removed")
+        expect(!fm.fileExists(atPath: done.appendingPathComponent(RecordingFiles.mic).path), "mic.caf removed")
+        expect(!fm.fileExists(atPath: done.appendingPathComponent(RecordingFiles.info).path), "session.json removed")
+        expect(fm.fileExists(atPath: done.appendingPathComponent("audio.txt").path), "transcript left in place")
+
+        let entries = RecordingsLibrary.recent(limit: 10, root: root)
+        expectEqual(entries.count, 1, "library lists the m4a, not the leftover folder")
+        expectEqual(entries.first?.title, "RdB", "m4a title")
+        expect(entries.first?.needsMix == false, "finished m4a needs no mix")
+        expect((entries.first?.duration ?? 0) > 0, "m4a duration")
+
+        // A finished folder whose m4a name is already taken picks the next free `-N`.
+        let clash = root.appendingPathComponent("2026-10-12-1817-RdB-extra", isDirectory: true)
+        try fm.createDirectory(at: clash, withIntermediateDirectories: true)
+        try writeSilentM4A(clash.appendingPathComponent(RecordingFiles.mix))
+        fm.createFile(atPath: root.appendingPathComponent("2026-10-12-1817-RdB-extra.m4a").path, contents: Data([9]))
+        let bumped = RecordingOutput.promote(folder: clash)
+        expect(bumped?.lastPathComponent == "2026-10-12-1817-RdB-extra-2.m4a", "promote does not overwrite an m4a")
+        expect(!fm.fileExists(atPath: clash.path), "empty working folder is removed")
+
+        let broken = root.appendingPathComponent("2026-10-12-1900", isDirectory: true)
+        try fm.createDirectory(at: broken, withIntermediateDirectories: true)
+        fm.createFile(atPath: broken.appendingPathComponent(RecordingFiles.mix).path, contents: Data([0]))
+        fm.createFile(atPath: broken.appendingPathComponent(RecordingFiles.desktop).path, contents: Data([1]))
+        expect(RecordingOutput.promote(folder: broken) == nil, "unreadable mix is not promoted")
+        expect(fm.fileExists(atPath: broken.appendingPathComponent(RecordingFiles.desktop).path), "raw file kept when the mix is unreadable")
     }
 
     // MARK: Preferences (isolated suite)
@@ -153,4 +209,25 @@ func runCoreChecks() throws {
         monitor.stop()
         expectEqual(fires, 0, "loud sample resets silence clock")
     }
+}
+
+/// A tenth of a second of stereo silence, long enough to be a real AAC file.
+private func writeSilentM4A(_ url: URL) throws {
+    let settings: [String: Any] = [
+        AVFormatIDKey: kAudioFormatMPEG4AAC,
+        AVSampleRateKey: 48_000,
+        AVNumberOfChannelsKey: 2,
+        AVEncoderBitRateKey: 64_000
+    ]
+    guard let format = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32, sampleRate: 48_000, channels: 2, interleaved: false
+    ), let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4_800) else {
+        struct Boom: Error {}
+        throw Boom()
+    }
+    buffer.frameLength = 4_800
+    let file = try AVAudioFile(
+        forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false
+    )
+    try file.write(from: buffer)
 }

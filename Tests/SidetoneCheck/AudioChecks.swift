@@ -181,6 +181,16 @@ func runAudioChecks() throws {
         )
         let file = try AVAudioFile(forReading: output)
         expectClose(Double(file.length), 24_000, tolerance: 4_096, "mix with missing mic still produced")
+
+        // No mic → desktop is duplicated on both channels (centered, not left-only).
+        let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 8_192)!
+        try file.read(into: buffer, frameCount: 8_192)
+        var maxDiff: Float = 0, peak: Float = 0
+        for i in 0..<Int(buffer.frameLength) {
+            let l = buffer.floatChannelData![0][i], r = buffer.floatChannelData![1][i]
+            maxDiff = max(maxDiff, abs(l - r)); peak = max(peak, abs(l))
+        }
+        expect(peak > 0.2 && maxDiff < 1e-6, "missing mic → desktop on both channels (peak \(peak), diff \(maxDiff))")
     }
 
     // Nothing captured at all → error, and no output file.

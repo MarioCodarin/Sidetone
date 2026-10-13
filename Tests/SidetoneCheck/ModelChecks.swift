@@ -149,6 +149,33 @@ func runModelChecks() throws {
         rig.model.trashAndStop()
     }
 
+    // Mic recording off: the mic is never opened, even if its permission is denied.
+    try withRig { rig in
+        rig.permissions.mic = .denied
+        rig.model.recordMicrophone = false
+        rig.model.startRecording(meeting: nil)
+        expectEqual(rig.model.state, .recording, "mic off + denied permission still records")
+        expectEqual(rig.desktop.startCount, 1, "desktop started with mic off")
+        expectEqual(rig.mic.startCount, 0, "mic not started when disabled")
+        rig.model.trashAndStop()
+        rig.model.recordMicrophone = true
+        Preferences.recordMicrophone = true
+    }
+
+    // Mic off for this take: the mix gets an empty mic result, never a stale one from the fake.
+    try withRig { rig in
+        rig.model.recordMicrophone = false
+        rig.model.startRecording(meeting: nil)
+        expect(!rig.model.sessionUsesMic, "mic meter state follows the session, not just the preference")
+        rig.model.recordMicrophone = true          // toggled mid-recording: session unaffected
+        expect(!rig.model.sessionUsesMic, "toggling mid-recording does not change the session")
+        rig.model.saveAndStop()
+        rig.model.recordMicrophone = true
+        Preferences.recordMicrophone = true
+        expectEqual(rig.mic.stopCount, 0, "mic never stopped when it was never started")
+        expectEqual(rig.mixer.calls.first?.mic.firstHostTime, nil, "mix gets an empty mic result")
+    }
+
     // Elapsed time excludes paused time.
     try withRig { rig in
         rig.model.startRecording(meeting: nil)

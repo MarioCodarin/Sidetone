@@ -1,7 +1,7 @@
 import SwiftUI
 import SidetoneCore
 
-/// Silence auto-stop settings. Hosted in an AppKit `NSWindow` — see
+/// Microphone and silence auto-stop settings. Hosted in an AppKit `NSWindow` — see
 /// `PreferencesWindowController`. No `@State`: Command Line Tools lack SwiftUIMacros.
 struct PreferencesView: View {
     @Environment(SidetoneModel.self) private var model
@@ -9,6 +9,17 @@ struct PreferencesView: View {
     var body: some View {
         @Bindable var model = model
         Form {
+            Section {
+                Toggle("Record my microphone", isOn: $model.recordMicrophone)
+                Text(model.recordMicrophone
+                     ? "Your voice goes on the right channel, the call on the left."
+                     : "Only the call (system audio) is recorded. The microphone is never opened.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Microphone")
+            }
+
             Section {
                 Toggle("Stop automatically after silence", isOn: $model.silenceAutoStopEnabled)
 

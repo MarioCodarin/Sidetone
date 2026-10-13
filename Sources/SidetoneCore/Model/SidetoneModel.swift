@@ -49,6 +49,10 @@ public final class SidetoneModel {
     public var silenceAutoStopEnabled: Bool = true {
         didSet { Preferences.silenceAutoStop = silenceAutoStopEnabled }
     }
+    /// Whether new recordings include the microphone. Off = desktop audio only, the mic is never opened.
+    public var recordMicrophone: Bool = true {
+        didSet { Preferences.recordMicrophone = recordMicrophone }
+    }
 
     // MARK: - Internals (not observation-tracked)
 
@@ -64,6 +68,11 @@ public final class SidetoneModel {
     @ObservationIgnored private var pendingMixes: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var mixingOutputs: Set<URL> = []
     @ObservationIgnored private var didLaunch = false
+    /// Whether the running capture opened the mic (the preference can change mid-recording).
+    public private(set) var sessionUsesMic = false
+    /// Loudest mic buffer of the running capture, to flag a mic that recorded only silence.
+    @ObservationIgnored private var micPeakDB: Float = -.infinity
+    private static let silentMicPeakDB: Float = -45
 
     private static let recentLimit = 4
 
@@ -131,6 +140,7 @@ public final class SidetoneModel {
         silenceTimeout = Preferences.silenceTimeout
         silenceThresholdDB = Preferences.silenceThresholdDB
         silenceAutoStopEnabled = Preferences.silenceAutoStop
+        recordMicrophone = Preferences.recordMicrophone
     }
 
     // MARK: - Recording control
@@ -139,7 +149,7 @@ public final class SidetoneModel {
         guard state == .idle else { return }
 
         // Without the mic the recording would silently be one-sided; say so instead.
-        if deps.permissions.microphoneStatus() == .denied {
+        if recordMicrophone, deps.permissions.microphoneStatus() == .denied {
             setIssue(.microphone, active: true)
             post("Microphone access is off. Grant it in System Settings to record.", kind: .error)
             return
@@ -169,10 +179,11 @@ public final class SidetoneModel {
         deps.mic.onLevelDB = { [weak self] db in
             DispatchQueue.main.async { self?.noteLevel(db, source: .mic) }
         }
+        let useMic = recordMicrophone
 
         do {
             try deps.desktop.start(writingTo: session.desktopURL)
-            try deps.mic.start(writingTo: session.micURL)
+            if useMic { try deps.mic.start(writingTo: session.micURL) }
         } catch {
             _ = deps.desktop.stop()
             _ = deps.mic.stop()
@@ -183,6 +194,8 @@ public final class SidetoneModel {
         }
 
         currentSession = session
+        sessionUsesMic = useMic
+        micPeakDB = -.infinity
         recordingTitle = meeting?.title
         setIssue(.systemAudio, active: false)
         silenceMonitor?.start()
@@ -227,8 +240,11 @@ public final class SidetoneModel {
         }
 
         let desktopResult = deps.desktop.stop()
-        let micResult = deps.mic.stop()
+        // Never ask a mic that wasn't started for its result: it could still hold an earlier take's.
+        let micResult = sessionUsesMic ? deps.mic.stop() : CaptureResult()
         let title = recordingTitle
+        // A mic that was on but never rose above the noise floor is almost always a wrong/dead input.
+        let micWasSilent = sessionUsesMic && micPeakDB.isFinite && micPeakDB < Self.silentMicPeakDB
         finishCaptureSession()
 
         // Persist alignment data before mixing so a crash mid-mix is still recoverable.
@@ -242,7 +258,9 @@ public final class SidetoneModel {
         startMix(
             desktopURL: session.desktopURL, micURL: session.micURL,
             desktopResult: desktopResult, micResult: micResult,
-            outputURL: session.outputURL, note: note, savedName: savedName
+            outputURL: session.outputURL,
+            note: micWasSilent ? note + "Mic recorded only silence · " : note,
+            savedName: savedName
         )
     }
 
@@ -389,7 +407,9 @@ public final class SidetoneModel {
     private func noteLevel(_ db: Float, source: CaptureSource) {
         switch source {
         case .desktop: desktopLevel = meterLevel(fromDB: db)
-        case .mic:     micLevel = meterLevel(fromDB: db)
+        case .mic:
+            micLevel = meterLevel(fromDB: db)
+            micPeakDB = max(micPeakDB, db)
         }
         silenceMonitor?.noteLevel(db)
     }
@@ -471,6 +491,7 @@ public final class SidetoneModel {
         micLevel = 0
         currentSession = nil
         recordingTitle = nil
+        sessionUsesMic = false
     }
 
     private func resetToIdle() {

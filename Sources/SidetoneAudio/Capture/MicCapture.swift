@@ -204,6 +204,7 @@ public final class MicCapture: AudioCapturing {
             running.withLock { $0 = false }
             tearDownEngine()
             releaseWriter()
+            defer { result = CaptureResult() }   // a later stop() must not report this take again
             return result
         }
     }

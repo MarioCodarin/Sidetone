@@ -13,7 +13,9 @@ import CoreAudio   // AudioConvertHostTimeToNanos (mach_absolute_time -> ns)
 ///  4. Encode to AAC `.m4a` via `AVAudioFile`, into a temp file that replaces `audio.m4a` only on
 ///     success — a failed mix never leaves a truncated `audio.m4a` behind.
 ///
-/// A missing/empty/unreadable source is silence on its channel. Raw CAFs are never modified.
+/// A missing/empty/unreadable desktop source is silence on its channel. With no mic source (mic
+/// recording turned off, or no usable mic file) the desktop audio is duplicated onto both channels so
+/// the take plays centered instead of left-only. Raw CAFs are never modified.
 public struct StereoMixer: AudioMixing {
 
     public init() {}
@@ -159,6 +161,9 @@ public struct StereoMixer: AudioMixing {
             // The file is as long as the longer channel; the shorter one is zero-padded by `fill`.
             let real = max(left.fill(channels[0], count: chunkFrames), right.fill(channels[1], count: chunkFrames))
             if real == 0 { break }
+            if right.source == nil, left.source != nil {
+                channels[1].update(from: channels[0], count: chunkFrames)
+            }
             buffer.frameLength = AVAudioFrameCount(real)
             do { try outFile.write(from: buffer) } catch { throw MixError.writeFailed(error.localizedDescription) }
             wroteAny = true

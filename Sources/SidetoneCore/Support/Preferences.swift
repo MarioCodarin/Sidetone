@@ -13,6 +13,7 @@ public enum Preferences {
         static let silenceTimeout     = "silenceTimeoutSeconds"
         static let silenceThresholdDB = "silenceThresholdDB"
         static let silenceAutoStop    = "silenceAutoStopEnabled"
+        static let recordMicrophone   = "recordMicrophone"
     }
 
     /// Seconds of two-channel silence before a recording auto-stops. Default 300 (5 min).
@@ -25,6 +26,12 @@ public enum Preferences {
     public static var silenceThresholdDB: Float {
         get { defaults.object(forKey: Key.silenceThresholdDB) == nil ? -50 : defaults.float(forKey: Key.silenceThresholdDB) }
         set { defaults.set(newValue, forKey: Key.silenceThresholdDB) }
+    }
+
+    /// Whether the microphone is part of new recordings. Default true.
+    public static var recordMicrophone: Bool {
+        get { defaults.object(forKey: Key.recordMicrophone) == nil ? true : defaults.bool(forKey: Key.recordMicrophone) }
+        set { defaults.set(newValue, forKey: Key.recordMicrophone) }
     }
 
     /// Whether silence auto-stop is active at all. Default true.

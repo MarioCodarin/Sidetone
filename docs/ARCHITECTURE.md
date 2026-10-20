@@ -13,7 +13,8 @@ Sidetone (app) ──► SidetoneServices ──► SidetoneCore
 | **SidetoneCore** | Foundation, Observation | Domain types (`Meeting`, `RecordingSession`, `SessionInfo`, `RecordingsLibrary`, `Preferences`), ports (`AudioCapturing`, `AudioMixing`, `MeetingProviding`, `MeetingAlerting`, `PermissionsProviding`, `SystemActions`), `SilenceMonitor`, and `SidetoneModel`, the `@Observable` state machine. |
 | **SidetoneAudio** | AVFoundation, CoreAudio, Accelerate | `SystemAudioTap`, `MicCapture`, `MonoFileWriter`, `FloatRingBuffer`, `Downmix`, `RMSMeter`, `StereoMixer` (+ `MonoSource`). |
 | **SidetoneServices** | EventKit, UserNotifications, AppKit | `CalendarAccess`, `NotificationManager`, `SystemPermissions`, `MacSystemActions`. |
-| **Sidetone** | SwiftUI | `AppEnvironment` (composition root), `AppDelegate`, views in `Panel/`, `Components/`, `Preferences/`. |
+| **Sidetone** | UI, Services, Audio | `AppEnvironment` (composition root), `AppDelegate`, the `@main` app. |
+| **SidetoneUI** | Core | SwiftUI views in `Panel/`, `Components/`, `Preferences/`, and the design tokens in `Support/Design.swift`. |
 | **SidetoneCheck** | Core, Audio | Hardware-free checks, `swift run SidetoneCheck`. |
 
 `SidetoneModel` only sees protocols, so `Tests/SidetoneCheck/ModelChecks.swift` drives the whole

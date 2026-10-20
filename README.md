@@ -70,7 +70,8 @@ The design is documented in depth in [`docs/research-notes.md`](docs/research-no
 
 ```sh
 swift run SidetoneCheck   # unit checks (no hardware, no network; CLT has no XCTest)
-./make-icon.sh       # optional: regenerate Assets/Sidetone.icns
+./make-icon.sh       # optional: regenerate Assets/Sidetone.icns from Assets/icon.svg (needs rsvg-convert)
+swift run SidetonePreview out/   # screenshot the real views, light + dark, with fixture data
 ./build.sh           # swift build -c release, then assemble + ad-hoc-sign Sidetone.app
 open ./Sidetone.app  # launches as a menu-bar item (no Dock icon)
 ```
@@ -123,9 +124,11 @@ does not hit the 4 GB WAV ceiling while it is still being captured.
 Sources/SidetoneCore/        domain, ports (protocols), SidetoneModel state machine (no system frameworks)
 Sources/SidetoneAudio/       capture (system tap, mic), file writer, ring buffer, streaming stereo mixer
 Sources/SidetoneServices/    EventKit, notifications, permissions, AppKit actions
-Sources/Sidetone/            menu-bar app: composition root + SwiftUI views
+Sources/Sidetone/            menu-bar app: composition root
+Sources/SidetoneUI/          SwiftUI views + design system (Support/Design.swift)
+Tests/SidetonePreview/       dev tool: screenshots the views with fixture data
 Tests/SidetoneCheck/         hardware-free checks (`swift run SidetoneCheck`)
-Assets/                      icon.swift + Sidetone.icns
+Assets/                      icon.svg (source) + Sidetone.icns
 docs/ARCHITECTURE.md         modules, recording flow, threading model
 ```
 

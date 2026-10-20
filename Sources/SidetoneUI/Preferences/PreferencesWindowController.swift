@@ -14,6 +14,7 @@ import SidetoneCore
 public final class PreferencesWindowController: NSObject, NSWindowDelegate {
     public static let shared = PreferencesWindowController()
 
+    private static let frameName = "SidetoneSettings"
     private var window: NSWindow?
 
     private override init() { super.init() }
@@ -33,7 +34,9 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.center()
+        // Reopen where the user left it; centre only the very first time.
+        if !window.setFrameUsingName(Self.frameName) { window.center() }
+        window.setFrameAutosaveName(Self.frameName)
 
         self.window = window
         window.makeKeyAndOrderFront(nil)

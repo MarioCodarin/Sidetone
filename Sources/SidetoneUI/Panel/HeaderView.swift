@@ -36,7 +36,7 @@ struct HeaderView: View {
             .padding(.horizontal, DS.Space.s)
 
             if let status = model.status {
-                StatusMessageView(status: status)
+                StatusMessageView(status: status, busy: model.mixesInFlight > 0)
                     .transition(.opacity)
             }
         }
@@ -75,6 +75,8 @@ private struct StatusDot: View {
 
 private struct StatusMessageView: View {
     let status: StatusMessage
+    /// A mix is running, so show it as progress rather than only as text.
+    let busy: Bool
 
     var body: some View {
         let isError = status.kind == .error
@@ -82,6 +84,16 @@ private struct StatusMessageView: View {
             if isError {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(DS.Palette.record)
+                    .accessibilityHidden(true)
+            } else if busy && status.kind == .info {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.7)
+                    .frame(width: 12, height: 12)
+                    .accessibilityHidden(true)
+            } else if status.kind == .success {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
             }
             Text(status.text)

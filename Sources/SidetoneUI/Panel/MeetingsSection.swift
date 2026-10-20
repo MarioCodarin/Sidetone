@@ -21,7 +21,7 @@ struct MeetingsSection: View {
             if model.meetings.isEmpty {
                 Text("No meetings nearby")
                     .font(DS.Typo.secondary)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, DS.Space.s)
                     .padding(.vertical, DS.Space.xs)
             } else {

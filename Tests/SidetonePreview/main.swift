@@ -22,7 +22,11 @@ final class StubCapture: AudioCapturing {
 }
 
 final class StubMixer: AudioMixing, @unchecked Sendable {
-    func mix(desktopURL: URL, micURL: URL, desktopResult: CaptureResult, micResult: CaptureResult, outputURL: URL) throws {}
+    /// Blocks every mix forever, so the "Mixing…" state can be photographed.
+    var hold = false
+    func mix(desktopURL: URL, micURL: URL, desktopResult: CaptureResult, micResult: CaptureResult, outputURL: URL) throws {
+        if hold { DispatchSemaphore(value: 0).wait() }
+    }
 }
 
 @MainActor final class StubMeetings: MeetingProviding {
@@ -70,6 +74,12 @@ struct Scenario {
     var error: String?
     var micOff = false
     var longTitles = false
+    var manyMeetings = false
+    /// Stop the capture right away: "mixing" holds the mix open, "saved" lets it finish.
+    var finish: Finish?
+    /// Index of the recent-recording row to hover with the real pointer (nil = none).
+    var hoverRow: Int?
+    enum Finish { case mixing, saved }
 
     init(_ name: String, isSettings: Bool = false) {
         self.name = name
@@ -86,7 +96,11 @@ let scenarios: [Scenario] = {
     var perms = Scenario("permissions"); perms.denyMic = true; perms.denyCalendar = true; perms.error = "Desktop audio error: the audio device went away."
     var micOff = Scenario("recording-mic-off"); micOff.micOff = true; micOff.recordedSeconds = 5; micOff.meetings = true
     var long = Scenario("long-titles"); long.meetings = true; long.recordings = 4; long.longTitles = true
-    return [idle, empty, rec, paused, adhoc, perms, micOff, long, Scenario("settings", isSettings: true)]
+    var many = Scenario("many-meetings"); many.meetings = true; many.manyMeetings = true; many.recordings = 4
+    var mixing = Scenario("mixing"); mixing.meetings = true; mixing.recordings = 2; mixing.recordedSeconds = 90; mixing.finish = .mixing
+    var saved = mixing.renamed("saved"); saved.finish = .saved
+    var hover = idle.renamed("hover"); hover.hoverRow = 1
+    return [idle, empty, rec, paused, adhoc, perms, micOff, long, many, mixing, saved, hover, Scenario("settings", isSettings: true)]
 }()
 
 extension Scenario {
@@ -95,6 +109,7 @@ extension Scenario {
         copy.recordedSeconds = recordedSeconds; copy.meetings = meetings; copy.recordings = recordings
         copy.recordMeeting = recordMeeting; copy.pause = pause; copy.denyMic = denyMic
         copy.denyCalendar = denyCalendar; copy.error = error; copy.micOff = micOff; copy.longTitles = longTitles
+        copy.manyMeetings = manyMeetings; copy.finish = finish; copy.hoverRow = hoverRow
         return copy
     }
 }
@@ -129,6 +144,11 @@ func makeModel(_ s: Scenario, root: URL) -> SidetoneModel {
             Meeting(id: "c", title: titles[2], start: now.addingTimeInterval(200 * 60), end: now.addingTimeInterval(230 * 60)),
         ]
     }
+    if s.manyMeetings {
+        for i in 0..<9 {
+            meetings.list.append(Meeting(id: "m\(i)", title: "Meeting \(i + 4)", start: now.addingTimeInterval(Double(300 + i * 70) * 60), end: now.addingTimeInterval(Double(330 + i * 70) * 60)))
+        }
+    }
     meetings.granted = !s.denyCalendar
 
     let samples: [(String, Double, Bool)] = [
@@ -153,8 +173,10 @@ func makeModel(_ s: Scenario, root: URL) -> SidetoneModel {
     let desktop = StubCapture()
     let mic = StubCapture()
     let clock = Box(now)
+    let mixer = StubMixer()
+    mixer.hold = s.finish == .mixing
     let model = SidetoneModel(dependencies: SidetoneDependencies(
-        desktop: desktop, mic: mic, mixer: StubMixer(), meetings: meetings, alerts: StubAlerts(),
+        desktop: desktop, mic: mic, mixer: mixer, meetings: meetings, alerts: StubAlerts(),
         permissions: permissions, actions: StubActions(), recordingsRoot: root, now: { clock.value }))
     model.recordMicrophone = !s.micOff
     model.launch()
@@ -167,6 +189,7 @@ func makeModel(_ s: Scenario, root: URL) -> SidetoneModel {
         desktop.onLevelDB?(-18)
         mic.onLevelDB?(s.micOff ? -90 : -32)
         if s.pause { model.togglePause() }
+        if s.finish != nil { model.saveAndStop() }
     }
     if let error = s.error { desktop.onFatalError?(NSError(domain: "preview", code: 1, userInfo: [NSLocalizedDescriptionKey: "the audio device went away."])); _ = error }
     return model
@@ -239,6 +262,14 @@ func run() async {
     }
     let outDir = URL(fileURLWithPath: outPath, isDirectory: true)
     try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+    // `--settings-window`: open the *real* Settings window controller and wait, so its keyboard
+    // handling (⌘W, Esc) can be driven from outside.
+    if args.contains("--settings-window") {
+        let model = makeModel(Scenario("settings", isSettings: true), root: FileManager.default.temporaryDirectory.appendingPathComponent("sidetone-preview-sw"))
+        PreferencesWindowController.shared.show(model: model)
+        await pump(40)
+        exit(0)
+    }
     let wanted = Set(args.dropFirst())
     let work = FileManager.default.temporaryDirectory.appendingPathComponent("sidetone-preview-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: work) }
@@ -251,6 +282,17 @@ func run() async {
             if let hosting = window.contentView?.subviews.first as? NSHostingView<AnyView> ?? window.contentView as? NSHostingView<AnyView> {
                 window.setContentSize(hosting.fittingSize)
             }
+            if let row = scenario.hoverRow, let screen = NSScreen.main {
+                // Recent rows sit in the lower half; walk the pointer onto the requested one.
+                let frame = window.frame
+                let y = screen.frame.height - (frame.minY + 110 + CGFloat(row) * 40)
+                CGWarpMouseCursorPosition(CGPoint(x: frame.minX + 120, y: y))
+                CGAssociateMouseAndMouseCursorPosition(1)
+                let move = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: CGPoint(x: frame.minX + 122, y: y), mouseButton: .left)
+                move?.post(tap: .cghidEventTap)
+            }
+            // SIDETONE_PREVIEW_HOLD=<seconds> keeps the window up so the accessibility tree can be inspected.
+            if let hold = ProcessInfo.processInfo.environment["SIDETONE_PREVIEW_HOLD"].flatMap(Double.init) { await pump(hold) }
             await pump(0.5)
             let file = outDir.appendingPathComponent("\(scenario.name)-\(suffix).png")
             try? FileManager.default.removeItem(at: file)

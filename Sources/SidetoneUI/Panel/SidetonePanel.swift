@@ -16,9 +16,8 @@ public struct SidetonePanel: View {
     private let panelWidth: CGFloat = 336
     private let maxListHeight: CGFloat = 320
 
-    /// Height of the list's content, measured. Starts at a plausible guess to avoid a jump on
-    /// the first open.
-    private let listContentHeight = State(initialValue: CGFloat(160))
+    /// Measured height of the list's content; nil until the first layout pass.
+    private let measuredListHeight = State<CGFloat?>(initialValue: nil)
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.m) {
@@ -37,8 +36,8 @@ public struct SidetonePanel: View {
             }
 
             // A menu-bar window sizes to its ideal height, and a ScrollView's ideal height is
-            // not its content. Measure the content so a short list stays short and a long one
-            // scrolls instead of running off the screen.
+            // not its content. Give it an explicit height (measured, with an estimate for the
+            // first frame) so a short list stays short and a long one scrolls.
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.l) {
                     MeetingsSection()
@@ -48,11 +47,11 @@ public struct SidetonePanel: View {
                     }
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                    listContentHeight.wrappedValue = height
+                    measuredListHeight.wrappedValue = height
                 }
             }
             .scrollIndicators(.never)
-            .frame(height: min(listContentHeight.wrappedValue, maxListHeight))
+            .frame(height: min(measuredListHeight.wrappedValue ?? estimatedListHeight, maxListHeight))
 
             Divider()
                 .opacity(0.6)
@@ -72,5 +71,16 @@ public struct SidetonePanel: View {
             guard let window = note.object as? NSWindow, window.title != "Sidetone Settings" else { return }
             model.refresh()
         }
+    }
+}
+
+extension SidetonePanel {
+    /// Close enough to the real layout that the first frame rarely moves.
+    fileprivate var estimatedListHeight: CGFloat {
+        var height: CGFloat = 24 + (model.meetings.isEmpty ? 28 : CGFloat(model.meetings.count) * 40)
+        if !model.recentRecordings.isEmpty {
+            height += DS.Space.l + 24 + CGFloat(model.recentRecordings.count) * 40
+        }
+        return height
     }
 }

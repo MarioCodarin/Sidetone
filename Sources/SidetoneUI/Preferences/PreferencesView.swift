@@ -23,6 +23,7 @@ public struct PreferencesView: View {
                      : "Only the call is recorded. The microphone is never opened.")
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DS.Space.s)
             }
 
             Section {
@@ -74,6 +75,7 @@ public struct PreferencesView: View {
                      : "Recordings run until you stop them.")
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DS.Space.s)
             }
         }
         .formStyle(.grouped)

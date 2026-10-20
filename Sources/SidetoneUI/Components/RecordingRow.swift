@@ -28,6 +28,7 @@ struct RecordingRow: View {
             .buttonStyle(.plain)
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel(spokenLabel)
             .help(entry.audioURL == nil ? "Not mixed yet — click to mix" : "Open the stereo mix")
 
             Menu {
@@ -60,8 +61,8 @@ struct RecordingRow: View {
         .listRow()
     }
 
-    /// "Today, 09:30 · 47:12", or a flagged "Not mixed" instead of the length.
-    private var subtitle: Text {
+    /// "Today, 09:30", "Yesterday, 16:15" or "19 Oct, 11:00".
+    private var when: String {
         let time = entry.date.formatted(date: .omitted, time: .shortened)
         let calendar = Calendar.current
         let day: String
@@ -72,13 +73,24 @@ struct RecordingRow: View {
         } else {
             day = entry.date.formatted(.dateTime.day().month(.abbreviated))
         }
-        let when = "\(day), \(time)"
+        return "\(day), \(time)"
+    }
+
+    /// The date, then the length, or a flagged "Not mixed" instead of the length.
+    private var subtitle: Text {
         if entry.needsMix {
             return Text("\(when) · ") + Text(Image(systemName: "exclamationmark.circle.fill")).foregroundStyle(DS.Palette.attention)
                 + Text(" Not mixed")
         }
         if let duration = entry.duration { return Text("\(when) · \(Formatting.elapsed(duration))") }
         return Text(when)
+    }
+
+    /// What VoiceOver says; the icon in `subtitle` would otherwise be read out by its symbol name.
+    private var spokenLabel: String {
+        if entry.needsMix { return "\(entry.displayTitle), \(when), not mixed" }
+        if let duration = entry.duration { return "\(entry.displayTitle), \(when), \(Formatting.elapsed(duration))" }
+        return "\(entry.displayTitle), \(when)"
     }
 
     private func open() {

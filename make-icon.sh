@@ -1,34 +1,43 @@
 #!/bin/bash
 set -e
 
-# Render the app icon and bundle it into Assets/Sidetone.icns.
+# Render Assets/icon.svg at every size macOS wants and pack them into Assets/Sidetone.icns.
 #
-# Assets/icon.swift draws a 1024x1024 master PNG (Sidetone-1024.png) with pure
-# AppKit / Core Graphics. This script then downscales it to every size macOS
-# wants and packs them into Sidetone.icns via iconutil.
+# Needs `rsvg-convert` (brew install librsvg) and `iconutil` (ships with macOS). The built
+# Sidetone.icns is committed, so you only need this when you change the artwork.
+#
+#   ./make-icon.sh            rebuild Assets/Sidetone.icns
+#   ./make-icon.sh --preview  also write icon-preview-{1024,128,32,16}.png next to it (gitignored)
 
 cd "$(dirname "$0")"
 
-MASTER="Sidetone-1024.png"
+command -v rsvg-convert >/dev/null || { echo "rsvg-convert not found: brew install librsvg" >&2; exit 1; }
+
+SVG="Assets/icon.svg"
 SET="Sidetone.iconset"
 
-echo "==> rendering $MASTER from Assets/icon.swift"
-swift Assets/icon.swift
-
-echo "==> building $SET"
+echo "==> rendering $SVG"
 rm -rf "$SET"
 mkdir "$SET"
-sips -z 16  16   "$MASTER" --out "$SET/icon_16x16.png"      >/dev/null
-sips -z 32  32   "$MASTER" --out "$SET/icon_16x16@2x.png"   >/dev/null
-sips -z 32  32   "$MASTER" --out "$SET/icon_32x32.png"      >/dev/null
-sips -z 64  64   "$MASTER" --out "$SET/icon_32x32@2x.png"   >/dev/null
-sips -z 128 128  "$MASTER" --out "$SET/icon_128x128.png"    >/dev/null
-sips -z 256 256  "$MASTER" --out "$SET/icon_128x128@2x.png" >/dev/null
-sips -z 256 256  "$MASTER" --out "$SET/icon_256x256.png"    >/dev/null
-sips -z 512 512  "$MASTER" --out "$SET/icon_256x256@2x.png" >/dev/null
-sips -z 512 512  "$MASTER" --out "$SET/icon_512x512.png"    >/dev/null
-cp "$MASTER" "$SET/icon_512x512@2x.png"
+render() { rsvg-convert -w "$1" -h "$1" "$SVG" -o "$SET/$2"; }
+render 16   icon_16x16.png
+render 32   icon_16x16@2x.png
+render 32   icon_32x32.png
+render 64   icon_32x32@2x.png
+render 128  icon_128x128.png
+render 256  icon_128x128@2x.png
+render 256  icon_256x256.png
+render 512  icon_256x256@2x.png
+render 512  icon_512x512.png
+render 1024 icon_512x512@2x.png
 
 iconutil -c icns "$SET" -o Assets/Sidetone.icns
-rm -rf "$SET" "$MASTER"
+
+if [ "$1" = "--preview" ]; then
+    for size in 1024 128 32 16; do
+        rsvg-convert -w "$size" -h "$size" "$SVG" -o "icon-preview-$size.png"
+    done
+fi
+
+rm -rf "$SET"
 echo "==> wrote Assets/Sidetone.icns"

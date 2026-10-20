@@ -8,24 +8,20 @@ struct RecordingRow: View {
     let entry: RecordingEntry
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.xs) {
             Button(action: open) {
-                HStack(spacing: 8) {
-                    Image(systemName: entry.needsMix ? "exclamationmark.circle.fill" : "waveform.circle.fill")
-                        .foregroundStyle(entry.needsMix ? Color.orange : Color.secondary)
-                        .accessibilityHidden(true)
-
+                HStack(spacing: DS.Space.s) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(entry.displayTitle)
-                            .font(.callout)
+                            .font(DS.Typo.body)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                        Text(subtitle)
-                            .font(.caption2)
+                        subtitle
+                            .font(DS.Typo.secondary)
                             .foregroundStyle(.secondary)
                     }
 
-                    Spacer(minLength: 4)
+                    Spacer(minLength: DS.Space.xs)
                 }
                 .contentShape(Rectangle())
             }
@@ -52,28 +48,37 @@ struct RecordingRow: View {
                     Label("Reveal in Finder", systemImage: "folder")
                 }
             } label: {
-                Label("Actions for \(entry.displayTitle)", systemImage: "ellipsis.circle")
-                    .labelStyle(.iconOnly)
+                Image(systemName: "ellipsis")
+                    .accessibilityLabel("Actions for \(entry.displayTitle)")
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(IconButtonStyle())
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Actions")
         }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
-        )
+        .listRow()
     }
 
-    /// Date, then either the length or "Not mixed".
-    private var subtitle: String {
-        let when = entry.date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
-        if entry.needsMix { return "\(when) · Not mixed" }
-        if let duration = entry.duration { return "\(when) · \(Formatting.elapsed(duration))" }
-        return when
+    /// "Today, 09:30 · 47:12", or a flagged "Not mixed" instead of the length.
+    private var subtitle: Text {
+        let time = entry.date.formatted(date: .omitted, time: .shortened)
+        let calendar = Calendar.current
+        let day: String
+        if calendar.isDateInToday(entry.date) {
+            day = "Today"
+        } else if calendar.isDateInYesterday(entry.date) {
+            day = "Yesterday"
+        } else {
+            day = entry.date.formatted(.dateTime.day().month(.abbreviated))
+        }
+        let when = "\(day), \(time)"
+        if entry.needsMix {
+            return Text("\(when) · ") + Text(Image(systemName: "exclamationmark.circle.fill")).foregroundStyle(DS.Palette.attention)
+                + Text(" Not mixed")
+        }
+        if let duration = entry.duration { return Text("\(when) · \(Formatting.elapsed(duration))") }
+        return Text(when)
     }
 
     private func open() {

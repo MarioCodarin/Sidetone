@@ -6,17 +6,14 @@ struct RecentRecordingsSection: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Recent recordings")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
+        VStack(alignment: .leading, spacing: DS.Space.xs) {
+            SectionHeader(title: "Recent") {
                 Button("Show all") { model.openRecordingsFolder() }
-                    .buttonStyle(.link)
-                    .font(.caption)
+                    .buttonStyle(QuietButtonStyle())
+                    .padding(.trailing, -DS.Space.s)
             }
 
-            VStack(spacing: 2) {
+            VStack(spacing: 0) {
                 ForEach(model.recentRecordings) { entry in
                     RecordingRow(entry: entry)
                 }

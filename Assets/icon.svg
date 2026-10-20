@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    Sidetone app icon. Edit this file, then run ./make-icon.sh.
+    Grid: macOS icon shape is 824 x 824 centred in the 1024 canvas (100 px margin), corner radius 185.
+    Symbol: one white circle split down the middle, the left half solid ("them"), the right half
+    a ring ("you"). The same split-circle is the menu-bar glyph.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF6B5E"/>
+      <stop offset="1" stop-color="#E3302B"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.24"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="drop" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <filter id="glyph" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#7A0F0B" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#drop)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+
+  <g fill="#FFFFFF" filter="url(#glyph)">
+    <!-- right half: ring, outer radius 260, 52 thick -->
+    <path d="M512 252 A260 260 0 0 1 512 772 L512 720 A208 208 0 0 0 512 304 Z"/>
+    <!-- left half: solid -->
+    <path d="M512 252 A260 260 0 0 0 512 772 Z"/>
+  </g>
+</svg>

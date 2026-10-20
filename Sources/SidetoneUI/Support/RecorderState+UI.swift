@@ -23,8 +23,8 @@ extension RecorderState {
     public var tint: Color {
         switch self {
         case .idle:      return .secondary
-        case .recording: return .red
-        case .paused:    return .orange
+        case .recording: return DS.Palette.record
+        case .paused:    return DS.Palette.attention
         }
     }
 }

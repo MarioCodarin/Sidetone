@@ -11,15 +11,15 @@ import SidetoneCore
 /// `PreferencesView`, brought front with `makeKeyAndOrderFront` right after
 /// `NSApp.activate`, is the dependable pattern and needs no policy juggling.
 @MainActor
-final class PreferencesWindowController: NSObject, NSWindowDelegate {
-    static let shared = PreferencesWindowController()
+public final class PreferencesWindowController: NSObject, NSWindowDelegate {
+    public static let shared = PreferencesWindowController()
 
     private var window: NSWindow?
 
     private override init() { super.init() }
 
     /// Bring the Preferences window to the front, creating it if necessary.
-    func show(model: SidetoneModel) {
+    public func show(model: SidetoneModel) {
         NSApp.activate(ignoringOtherApps: true)
 
         if let window {
@@ -39,7 +39,7 @@ final class PreferencesWindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    func windowWillClose(_ notification: Notification) {
+    public func windowWillClose(_ notification: Notification) {
         window = nil
     }
 }

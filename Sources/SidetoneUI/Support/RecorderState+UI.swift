@@ -3,7 +3,7 @@ import SidetoneCore
 
 /// How each `RecorderState` looks. One mapping shared by the menu-bar glyph and the panel header.
 extension RecorderState {
-    var label: String {
+    public var label: String {
         switch self {
         case .idle:      return "Ready"
         case .recording: return "Recording"
@@ -12,7 +12,7 @@ extension RecorderState {
     }
 
     /// Split-circle at rest (the L/R brand); record / pause glyphs while capturing.
-    var symbolName: String {
+    public var symbolName: String {
         switch self {
         case .idle:      return "circle.lefthalf.filled"
         case .recording: return "record.circle.fill"
@@ -20,7 +20,7 @@ extension RecorderState {
         }
     }
 
-    var tint: Color {
+    public var tint: Color {
         switch self {
         case .idle:      return .secondary
         case .recording: return .red

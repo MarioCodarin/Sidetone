@@ -3,10 +3,12 @@ import SidetoneCore
 
 /// Microphone and silence auto-stop settings. Hosted in an AppKit `NSWindow` — see
 /// `PreferencesWindowController`. No `@State`: Command Line Tools lack SwiftUIMacros.
-struct PreferencesView: View {
+public struct PreferencesView: View {
     @Environment(SidetoneModel.self) private var model
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         @Bindable var model = model
         Form {
             Section {

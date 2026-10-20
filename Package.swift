@@ -4,8 +4,9 @@ import PackageDescription
 // Module graph (arrows point at dependencies):
 //
 //   Sidetone (app) ──► SidetoneServices ──► SidetoneCore
-//        │                                      ▲
-//        └──────────► SidetoneAudio ────────────┘
+//        │  │                                   ▲
+//        │  └──────► SidetoneAudio ─────────────┤
+//        └─────────► SidetoneUI ────────────────┘
 //
 // SidetoneCore imports only Foundation/Observation, so its state machine is testable with
 // fakes. Everything that touches hardware or a system framework lives in Audio or Services.
@@ -21,7 +22,8 @@ let package = Package(
     ],
     products: [
         .executable(name: "Sidetone", targets: ["Sidetone"]),
-        .executable(name: "SidetoneCheck", targets: ["SidetoneCheck"])
+        .executable(name: "SidetoneCheck", targets: ["SidetoneCheck"]),
+        .executable(name: "SidetonePreview", targets: ["SidetonePreview"])
     ],
     targets: [
         // Domain types, ports (protocols) and the `SidetoneModel` state machine.
@@ -43,10 +45,19 @@ let package = Package(
             swiftSettings: swift5
         ),
 
-        // The menu-bar app: composition root + SwiftUI views.
+        // The SwiftUI views (panel, settings, design tokens). Depends only on Core, so a
+        // preview harness can host them with fake dependencies.
+        .target(
+            name: "SidetoneUI",
+            dependencies: ["SidetoneCore"],
+            path: "Sources/SidetoneUI",
+            swiftSettings: swift5
+        ),
+
+        // The menu-bar app: composition root.
         .executableTarget(
             name: "Sidetone",
-            dependencies: ["SidetoneCore", "SidetoneAudio", "SidetoneServices"],
+            dependencies: ["SidetoneCore", "SidetoneAudio", "SidetoneServices", "SidetoneUI"],
             path: "Sources/Sidetone",
             swiftSettings: swift5
         ),
@@ -57,6 +68,15 @@ let package = Package(
             name: "SidetoneCheck",
             dependencies: ["SidetoneCore", "SidetoneAudio"],
             path: "Tests/SidetoneCheck",
+            swiftSettings: swift5
+        ),
+
+        // Dev tool: hosts the real views with fixture data and screenshots them in light and
+        // dark (`swift run SidetonePreview <out-dir>`). Not part of the shipped app.
+        .executableTarget(
+            name: "SidetonePreview",
+            dependencies: ["SidetoneCore", "SidetoneUI"],
+            path: "Tests/SidetonePreview",
             swiftSettings: swift5
         )
     ]

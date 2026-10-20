@@ -1,5 +1,6 @@
 import SwiftUI
 import SidetoneCore
+import SidetoneUI
 
 @main
 struct SidetoneApp: App {

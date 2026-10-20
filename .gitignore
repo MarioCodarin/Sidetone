@@ -24,3 +24,6 @@ Recordings/
 icon-work/
 Sidetone.iconset/
 Sidetone-1024.png
+
+# Claude Flow local state
+.claude-flow/

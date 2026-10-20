@@ -8,12 +8,14 @@ import SidetoneCore
 ///
 /// Layout (top → bottom): header · permission banner (if needed) · controls · level meters
 /// (while capturing) · meetings · recent recordings · footer.
-struct SidetonePanel: View {
+public struct SidetonePanel: View {
     @Environment(SidetoneModel.self) private var model
+
+    public init() {}
 
     private let panelWidth: CGFloat = 340
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HeaderView()
 

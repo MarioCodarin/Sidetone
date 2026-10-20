@@ -7,11 +7,6 @@ struct ControlsView: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        controls
-    }
-
-    @ViewBuilder
-    private var controls: some View {
         switch model.state {
         case .idle:
             idleControls
@@ -25,23 +20,25 @@ struct ControlsView: View {
     /// The meeting "in progress" changes with the clock, not with model state, so tick it.
     private var idleControls: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
-            if let current = model.currentMeeting(at: context.date) {
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Space.xs) {
+                if let current = model.currentMeeting(at: context.date) {
                     recordButton(title: "Record Meeting", meeting: current)
-                    HStack(spacing: 4) {
-                        Text("Tags this recording as “\(current.title)”.")
+                    HStack(spacing: DS.Space.xs) {
+                        Text("Named “\(current.title)”")
+                            .font(DS.Typo.secondary)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                        Spacer(minLength: 4)
+                        Spacer(minLength: DS.Space.xs)
                         Button("Without meeting") { model.startRecording(meeting: nil) }
-                            .buttonStyle(.link)
+                            .buttonStyle(QuietButtonStyle())
+                            .layoutPriority(1)
                             .help("Record without attaching to a meeting")
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .padding(.leading, DS.Space.s)
+                } else {
+                    recordButton(title: "Record", meeting: nil)
                 }
-            } else {
-                recordButton(title: "Record", meeting: nil)
             }
         }
     }
@@ -50,19 +47,26 @@ struct ControlsView: View {
         Button {
             model.startRecording(meeting: meeting)
         } label: {
-            Label(title, systemImage: "record.circle.fill")
-                .frame(maxWidth: .infinity)
+            ZStack {
+                Label(title, systemImage: "record.circle.fill")
+                HStack {
+                    Spacer()
+                    Text("⌘R")
+                        .font(DS.Typo.secondary)
+                        .opacity(0.7)
+                        .accessibilityHidden(true)
+                }
+                .padding(.trailing, DS.Space.m)
+            }
         }
-        .controlSize(.large)
-        .buttonStyle(.borderedProminent)
-        .tint(.red)
+        .buttonStyle(ActionButtonStyle(tint: DS.Palette.record, height: 36))
         .keyboardShortcut("r", modifiers: [.command])
     }
 
     // MARK: Recording / paused
 
     private var activeControls: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s) {
             Button {
                 model.togglePause()
             } label: {
@@ -70,31 +74,25 @@ struct ControlsView: View {
                     model.state == .paused ? "Resume" : "Pause",
                     systemImage: model.state == .paused ? "play.fill" : "pause.fill"
                 )
-                .frame(maxWidth: .infinity)
             }
-            .controlSize(.large)
-            .buttonStyle(.bordered)
-            .tint(.orange)
+            .buttonStyle(ActionButtonStyle(prominent: false, height: 36))
 
             Button {
                 model.saveAndStop()
             } label: {
                 Label("Save", systemImage: "stop.fill")
-                    .frame(maxWidth: .infinity)
             }
-            .controlSize(.large)
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
+            .buttonStyle(ActionButtonStyle(tint: .accentColor, height: 36))
 
             Button(role: .destructive) {
                 confirmDiscard()
             } label: {
                 Label("Discard", systemImage: "trash")
                     .labelStyle(.iconOnly)
+                    .foregroundStyle(DS.Palette.record)
             }
-            .controlSize(.large)
-            .buttonStyle(.bordered)
-            .tint(.red)
+            .buttonStyle(ActionButtonStyle(prominent: false, height: 36))
+            .frame(width: 40)
             .help("Discard this recording")
         }
     }

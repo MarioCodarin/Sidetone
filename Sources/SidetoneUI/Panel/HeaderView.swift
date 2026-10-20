@@ -1,50 +1,103 @@
 import SwiftUI
 import SidetoneCore
 
-/// State badge + elapsed time + the latest status message.
+/// State dot + label + elapsed time, with the latest status message underneath.
 struct HeaderView: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Image(systemName: model.state.symbolName)
-                .foregroundStyle(model.state.tint)
-                .font(.system(size: 14, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            HStack(alignment: .center, spacing: DS.Space.s) {
+                StatusDot(state: model.state)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.state.label)
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.state.label)
+                        .font(DS.Typo.title)
 
-                if let title = model.recordingTitle, !title.isEmpty {
-                    Text(title)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    if let title = model.recordingTitle, !title.isEmpty {
+                        Text(title)
+                            .font(DS.Typo.secondary)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
 
-                if let status = model.status {
-                    Text(status.text)
-                        .font(.caption)
-                        .foregroundStyle(status.kind == .error ? Color.red : Color.secondary)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityLabel(status.kind == .error ? "Error: \(status.text)" : status.text)
+                Spacer(minLength: DS.Space.s)
+
+                if model.state != .idle {
+                    Text(Formatting.elapsed(model.elapsed))
+                        .font(DS.Typo.timer)
+                        .foregroundStyle(model.state == .paused ? .secondary : .primary)
+                        .accessibilityLabel("Elapsed \(Formatting.elapsed(model.elapsed))")
+                        .transition(.opacity)
                 }
             }
+            .padding(.horizontal, DS.Space.s)
 
-            Spacer(minLength: 8)
-
-            if model.state != .idle {
-                Text(Formatting.elapsed(model.elapsed))
-                    .font(.system(.title3, design: .monospaced))
-                    .foregroundStyle(model.state == .paused ? .secondary : .primary)
-                    .monospacedDigit()
-                    .accessibilityLabel("Elapsed \(Formatting.elapsed(model.elapsed))")
+            if let status = model.status {
+                StatusMessageView(status: status)
+                    .transition(.opacity)
             }
         }
+        .motion(value: model.state)
+        .motion(value: model.status)
         .accessibilityElement(children: .contain)
+    }
+}
+
+/// 8 pt state indicator. The recording dot breathes unless Reduce Motion is on.
+private struct StatusDot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let state: RecorderState
+
+    var body: some View {
+        Group {
+            if state == .recording && !reduceMotion {
+                dot.phaseAnimator([1.0, 0.35]) { view, opacity in
+                    view.opacity(opacity)
+                } animation: { _ in
+                    .easeInOut(duration: 0.9)
+                }
+            } else {
+                dot
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var dot: some View {
+        Circle()
+            .fill(state == .idle ? AnyShapeStyle(.tertiary) : AnyShapeStyle(state.tint))
+            .frame(width: 8, height: 8)
+    }
+}
+
+private struct StatusMessageView: View {
+    let status: StatusMessage
+
+    var body: some View {
+        let isError = status.kind == .error
+        HStack(alignment: .firstTextBaseline, spacing: DS.Space.s) {
+            if isError {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(DS.Palette.record)
+                    .accessibilityHidden(true)
+            }
+            Text(status.text)
+                .font(DS.Typo.secondary)
+                .foregroundStyle(isError ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, DS.Space.s)
+        .padding(.vertical, isError ? DS.Space.s : 0)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
+                .fill(isError ? DS.Palette.record.opacity(0.10) : .clear)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isError ? "Error: \(status.text)" : status.text)
     }
 }

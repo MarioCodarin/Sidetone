@@ -6,13 +6,13 @@ struct FooterView: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: DS.Space.xs) {
             Button {
                 model.openRecordingsFolder()
             } label: {
                 Label("Recordings", systemImage: "folder")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(QuietButtonStyle())
             .help("Open ~/Documents/Recordings in Finder")
 
             Spacer()
@@ -20,19 +20,22 @@ struct FooterView: View {
             Button {
                 PreferencesWindowController.shared.show(model: model)
             } label: {
-                Label("Settings…", systemImage: "gearshape")
+                Image(systemName: "gearshape")
+                    .accessibilityLabel("Settings")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(IconButtonStyle())
             .keyboardShortcut(",", modifiers: [.command])
-            .help("Open Preferences")
+            .help("Settings  ⌘,")
 
             Button {
                 model.quit()
             } label: {
-                Label("Quit", systemImage: "power")
+                Image(systemName: "power")
+                    .accessibilityLabel("Quit Sidetone")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(IconButtonStyle())
             .keyboardShortcut("q", modifiers: [.command])
+            .help("Quit Sidetone  ⌘Q")
         }
     }
 }

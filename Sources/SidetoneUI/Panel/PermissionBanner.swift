@@ -6,24 +6,26 @@ struct PermissionBanner: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: DS.Space.xs) {
             ForEach(model.permissionIssues) { issue in
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .center, spacing: DS.Space.s) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(DS.Palette.attention)
                         .accessibilityHidden(true)
                     Text(issue.explanation)
-                        .font(.caption)
+                        .font(DS.Typo.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 4)
+                    Spacer(minLength: DS.Space.xs)
                     Button("Open Settings") { model.openSettings(for: issue) }
-                        .controlSize(.small)
+                        .buttonStyle(ActionButtonStyle(prominent: false, height: 24))
+                        .fixedSize()
                 }
-                .padding(8)
+                .padding(DS.Space.s)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.orange.opacity(0.12))
+                    RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
+                        .fill(DS.Palette.attention.opacity(0.12))
                 )
+                .accessibilityElement(children: .contain)
             }
         }
     }

@@ -28,7 +28,7 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
         }
 
         let hosting = NSHostingController(rootView: PreferencesView().environment(model))
-        let window = NSWindow(contentViewController: hosting)
+        let window = SettingsWindow(contentViewController: hosting)
         window.title = "Sidetone Settings"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
@@ -41,5 +41,21 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
 
     public func windowWillClose(_ notification: Notification) {
         window = nil
+    }
+}
+
+/// A menu-bar agent has no main menu, so ⌘W and Esc would do nothing; handle them here.
+private final class SettingsWindow: NSWindow {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.charactersIgnoringModifiers == "w" {
+            performClose(nil)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        performClose(nil)
     }
 }

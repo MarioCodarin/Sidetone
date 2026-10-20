@@ -1,7 +1,7 @@
 import SwiftUI
 import SidetoneCore
 
-/// One calendar meeting: title, time range, record button. Red dot + tint while in progress.
+/// One calendar meeting: title, time range, record button. Tinted while in progress.
 struct MeetingRow: View {
     let meeting: Meeting
     let inProgress: Bool
@@ -9,38 +9,35 @@ struct MeetingRow: View {
     let onRecord: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(inProgress ? Color.red : Color.clear)
-                .frame(width: 6, height: 6)
-                .accessibilityHidden(true)
-
+        HStack(spacing: DS.Space.s) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(meeting.title)
-                    .font(.callout)
+                    .font(DS.Typo.body)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Text("\(meeting.start, format: .dateTime.hour().minute()) – \(meeting.end, format: .dateTime.hour().minute())")
-                    .font(.caption2)
+                subtitle
+                    .font(DS.Typo.secondary)
                     .foregroundStyle(.secondary)
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: DS.Space.xs)
 
             Button(action: onRecord) {
-                Label("Record \(meeting.title)", systemImage: "record.circle")
-                    .labelStyle(.iconOnly)
-                    .foregroundStyle(canStart ? Color.red : Color.secondary)
+                Image(systemName: inProgress ? "record.circle.fill" : "record.circle")
+                    .accessibilityLabel("Record \(meeting.title)")
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(IconButtonStyle(hoverTint: DS.Palette.record, restTint: inProgress ? DS.Palette.record : nil))
             .disabled(!canStart)
             .help("Record this meeting")
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(inProgress ? Color.red.opacity(0.10) : Color.clear)
-        )
+        .listRow(highlight: inProgress ? DS.Palette.record.opacity(0.08) : nil)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var subtitle: Text {
+        let range = "\(meeting.start.formatted(.dateTime.hour().minute())) – \(meeting.end.formatted(.dateTime.hour().minute()))"
+        guard inProgress else { return Text(range) }
+        return Text("Now").fontWeight(.semibold).foregroundStyle(.primary)
+            + Text(" · until \(meeting.end.formatted(.dateTime.hour().minute()))")
     }
 }

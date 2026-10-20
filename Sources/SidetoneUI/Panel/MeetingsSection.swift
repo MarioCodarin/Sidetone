@@ -6,30 +6,28 @@ struct MeetingsSection: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Meetings")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
+        VStack(alignment: .leading, spacing: DS.Space.xs) {
+            SectionHeader(title: "Meetings") {
                 Button {
                     model.refreshMeetings()
                 } label: {
-                    Label("Refresh meetings", systemImage: "arrow.clockwise")
-                        .labelStyle(.iconOnly)
+                    Image(systemName: "arrow.clockwise")
+                        .accessibilityLabel("Refresh meetings")
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(IconButtonStyle(size: 20))
                 .help("Refresh meetings")
             }
 
             if model.meetings.isEmpty {
-                Text("No meetings nearby.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 2)
+                Text("No meetings nearby")
+                    .font(DS.Typo.secondary)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, DS.Space.s)
+                    .padding(.vertical, DS.Space.xs)
             } else {
                 // Tick so the "in progress" highlight follows the clock while the panel stays open.
                 TimelineView(.periodic(from: .now, by: 30)) { context in
-                    VStack(spacing: 4) {
+                    VStack(spacing: 0) {
                         ForEach(model.meetings) { meeting in
                             MeetingRow(
                                 meeting: meeting,

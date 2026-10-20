@@ -13,50 +13,56 @@ public struct SidetonePanel: View {
 
     public init() {}
 
-    private let panelWidth: CGFloat = 340
+    private let panelWidth: CGFloat = 336
+    private let maxListHeight: CGFloat = 320
+
+    /// Height of the list's content, measured. Starts at a plausible guess to avoid a jump on
+    /// the first open.
+    private let listContentHeight = State(initialValue: CGFloat(160))
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.m) {
             HeaderView()
 
             if !model.permissionIssues.isEmpty {
                 PermissionBanner()
+                    .transition(.opacity)
             }
-
-            Divider()
 
             ControlsView()
 
             if model.state != .idle {
-                Divider()
                 MetersView()
+                    .transition(.opacity)
             }
 
-            Divider()
-
             // A menu-bar window sizes to its ideal height, and a ScrollView's ideal height is
-            // not the list. Give it an explicit height so a short list stays short and a long
-            // one scrolls instead of running off the screen.
+            // not its content. Measure the content so a short list stays short and a long one
+            // scrolls instead of running off the screen.
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.l) {
                     MeetingsSection()
 
                     if !model.recentRecordings.isEmpty {
-                        Divider()
                         RecentRecordingsSection()
                     }
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    listContentHeight.wrappedValue = height
+                }
             }
-            .frame(height: listHeight)
+            .scrollIndicators(.never)
+            .frame(height: min(listContentHeight.wrappedValue, maxListHeight))
 
             Divider()
+                .opacity(0.6)
 
             FooterView()
         }
-        .padding(12)
+        .padding(DS.Space.m)
         .frame(width: panelWidth)
-        // Suppress the auto-drawn focus ring on the first control when the panel opens.
-        .focusEffectDisabled()
+        .motion(value: model.state)
+        .motion(value: model.permissionIssues)
         // The window is created once, so `onAppear` alone would leave meetings/recordings stale.
         // Becoming key is what happens every time the panel is opened.
         .onAppear { model.refresh() }
@@ -66,21 +72,5 @@ public struct SidetonePanel: View {
             guard let window = note.object as? NSWindow, window.title != "Sidetone Settings" else { return }
             model.refresh()
         }
-    }
-
-    /// Matches the section headers and rows closely enough that the cap is the only slack.
-    private var listHeight: CGFloat {
-        var height: CGFloat = 28
-        if model.meetings.isEmpty {
-            height += 24
-        } else {
-            height += CGFloat(model.meetings.count) * 44
-        }
-        if !model.recentRecordings.isEmpty {
-            height += 16
-            height += 28
-            height += CGFloat(model.recentRecordings.count) * 48
-        }
-        return min(height, 360)
     }
 }

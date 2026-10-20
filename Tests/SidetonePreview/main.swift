@@ -247,13 +247,21 @@ func run() async {
         for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             let model = makeModel(scenario, root: work.appendingPathComponent("\(scenario.name)-\(suffix)"))
             let window = host(scenario, model: model, appearance: appearance)
-            await pump(0.9)
+            await pump(0.5)   // let the model's async launch work (permissions, calendar) land
+            if let hosting = window.contentView?.subviews.first as? NSHostingView<AnyView> ?? window.contentView as? NSHostingView<AnyView> {
+                window.setContentSize(hosting.fittingSize)
+            }
+            await pump(0.5)
             let file = outDir.appendingPathComponent("\(scenario.name)-\(suffix).png")
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            task.arguments = ["-x", "-o", "-l", String(window.windowNumber), file.path]
-            try? task.run()
-            task.waitUntilExit()
+            try? FileManager.default.removeItem(at: file)
+            for attempt in 1...3 where !FileManager.default.fileExists(atPath: file.path) {
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                task.arguments = ["-x", "-o", "-l", String(window.windowNumber), file.path]
+                try? task.run()
+                task.waitUntilExit()
+                if attempt < 3, !FileManager.default.fileExists(atPath: file.path) { await pump(0.5) }
+            }
             window.close()
             print("captured \(file.lastPathComponent)")
         }

@@ -1,34 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <!--
     Sidetone app icon. Edit this file, then run ./make-icon.sh.
-    Grid: macOS icon shape is 824 x 824 centred in the 1024 canvas (100 px margin), corner radius 185.
-    Symbol: one white circle split down the middle, the left half solid ("them"), the right half
-    a ring ("you"). The same split-circle is the menu-bar glyph.
+    Grid: the macOS icon shape is 824 x 824 centred in the 1024 canvas (100 px margin), corner radius 185.
+    Symbol: one amber circle split down the middle — the left half solid ("them / L"), the right half a
+    ring ("you / R"). The same split-circle is the menu-bar glyph and the record control in the panel.
+    Palette: warm graphite ground, one amber accent. No hue gradients, no glow.
   -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FF6B5E"/>
-      <stop offset="1" stop-color="#E3302B"/>
-    </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.24"/>
-      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0" stop-color="#27221D"/>
+      <stop offset="1" stop-color="#141210"/>
     </linearGradient>
     <filter id="drop" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.28"/>
-    </filter>
-    <filter id="glyph" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#7A0F0B" flood-opacity="0.35"/>
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.32"/>
     </filter>
   </defs>
 
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#drop)"/>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="#FFFFFF" stroke-opacity="0.08"/>
 
-  <g fill="#FFFFFF" filter="url(#glyph)">
-    <!-- right half: ring, outer radius 260, 52 thick -->
-    <path d="M512 252 A260 260 0 0 1 512 772 L512 720 A208 208 0 0 0 512 304 Z"/>
+  <g fill="#E9A23B">
+    <!-- right half: ring, outer radius 230, 46 thick -->
+    <path d="M512 282 A230 230 0 0 1 512 742 L512 696 A184 184 0 0 0 512 328 Z"/>
     <!-- left half: solid -->
-    <path d="M512 252 A260 260 0 0 0 512 772 Z"/>
+    <path d="M512 282 A230 230 0 0 0 512 742 Z"/>
   </g>
 </svg>

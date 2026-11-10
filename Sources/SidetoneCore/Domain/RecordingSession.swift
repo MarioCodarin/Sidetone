@@ -17,7 +17,6 @@ public struct RecordingSession {
     public let micURL: URL
     public let outputURL: URL
     public let startedAt: Date
-    public let meetingTitle: String?
 
     /// Creates the dated folder and returns the session. Throws on filesystem error.
     ///
@@ -61,8 +60,7 @@ public struct RecordingSession {
             desktopURL: folderURL.appendingPathComponent(RecordingFiles.desktop),
             micURL: folderURL.appendingPathComponent(RecordingFiles.mic),
             outputURL: folderURL.appendingPathComponent(RecordingFiles.mix),
-            startedAt: now,
-            meetingTitle: meetingTitle
+            startedAt: now
         )
     }
 

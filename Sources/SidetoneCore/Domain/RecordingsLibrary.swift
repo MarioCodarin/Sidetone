@@ -1,8 +1,8 @@
 import Foundation
 import AVFoundation
 
-/// One past recording on disk. A finished take is a single `.m4a` in ~/Documents/Recordings.
-/// A take that never finished mixing is still the working folder.
+/// One past recording on disk. A finished take is a single `.m4a`; a take that never finished
+/// mixing is still the working folder.
 public struct RecordingEntry: Identifiable, Equatable {
     /// File path for a finished mix, folder path for one that still needs mixing.
     public var id: String { folderURL.path }
@@ -33,30 +33,23 @@ public struct RecordingEntry: Identifiable, Equatable {
     public var needsMix: Bool { audioURL == nil }
 }
 
-/// Reads the on-disk recordings library so the panel can show prior recordings
-/// after a restart — the in-memory list doesn't survive relaunches.
+/// Reads the on-disk recordings library so the panel can show prior recordings after a
+/// restart — the in-memory list doesn't survive relaunches.
 public enum RecordingsLibrary {
-
-    /// ~/Documents/Recordings (not created here).
-    public static func recordingsRoot() -> URL? {
-        guard let documents = try? FileManager.default.url(
-            for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false
-        ) else { return nil }
-        return documents.appendingPathComponent("Recordings", isDirectory: true)
-    }
 
     /// The `limit` most recent recordings, newest first. Finished takes are `.m4a` files;
     /// a take that still needs mixing is its working folder.
     ///
-    /// - Parameter root: override for tests. `nil` uses `recordingsRoot()`.
-    public static func recent(limit: Int, root: URL? = nil) -> [RecordingEntry] {
+    /// - Parameters:
+    ///   - limit: how many entries to return.
+    ///   - root: the recordings folder (see `RecordingsLocation`).
+    public static func recent(limit: Int, root: URL) -> [RecordingEntry] {
         let fm = FileManager.default
-        guard let root = root ?? recordingsRoot(),
-              let items = try? fm.contentsOfDirectory(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey, .contentModificationDateKey],
-                options: [.skipsHiddenFiles]
-              ) else {
+        guard let items = try? fm.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: [.isDirectoryKey, .creationDateKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else {
             return []
         }
 
@@ -136,12 +129,41 @@ public enum RecordingsLibrary {
         )
     }
 
-    /// Header-only read. Nil when the file is missing, not audio, or empty.
+    // MARK: - Duration (cached)
+
+    private struct CachedDuration {
+        let size: Int
+        let modified: Date
+        let duration: TimeInterval
+    }
+
+    private static let cacheLock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: CachedDuration] = [:]
+    private static let cacheLimit = 512
+
+    /// Header-only read of an audio file's length, cached by path + size + modification date so
+    /// opening the panel does not re-open every recording on every refresh.
     static func duration(ofAudio url: URL) -> TimeInterval? {
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        guard let size = values?.fileSize, let modified = values?.contentModificationDate else {
+            return nil
+        }
+
+        let key = url.path
+        if let hit = cacheLock.withLock({ cache[key] }), hit.size == size, hit.modified == modified {
+            return hit.duration
+        }
+
         guard let file = try? AVAudioFile(forReading: url) else { return nil }
         let rate = file.fileFormat.sampleRate
         guard rate > 0, file.length > 0 else { return nil }
-        return TimeInterval(file.length) / rate
+        let duration = TimeInterval(file.length) / rate
+
+        cacheLock.withLock {
+            if cache.count >= cacheLimit { cache.removeAll(keepingCapacity: true) }
+            cache[key] = CachedDuration(size: size, modified: modified, duration: duration)
+        }
+        return duration
     }
 
     /// Longer of the two captures. A channel with no rate is ignored (nothing was written).

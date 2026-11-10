@@ -15,10 +15,10 @@ import os
 public final class SilenceMonitor {
 
     /// dBFS threshold above which the signal counts as "loud" (resets the silence clock).
-    var thresholdDB: Float
+    let thresholdDB: Float
 
     /// How long the signal must stay below `thresholdDB` before `onTimeout` fires.
-    var timeout: TimeInterval
+    let timeout: TimeInterval
 
     /// Invoked on MAIN exactly once when the silence window elapses. The monitor stops
     /// itself first, so the timer won't fire repeatedly.
@@ -91,6 +91,7 @@ public final class SilenceMonitor {
         // Stop first so we never fire twice, then notify. We're already on the main
         // run loop here, satisfying the "onTimeout on MAIN" contract.
         stop()
+        Log.model.notice("silence timeout after \(self.timeout, format: .fixed(precision: 0)) s")
         onTimeout()
     }
 }

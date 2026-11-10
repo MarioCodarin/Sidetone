@@ -3,8 +3,9 @@ import AVFoundation
 import CoreAudio
 import SidetoneCore
 import SidetoneAudio
+@testable import SidetoneAudio
 
-/// Signal-level checks: ring buffer, meters, file writer, streaming mixer. No hardware.
+/// Signal-level checks: ring buffer, meters, downmix, file writer, streaming mixer. No hardware.
 func runAudioChecks() throws {
 
     // MARK: FloatRingBuffer
@@ -241,4 +242,44 @@ func writeSineCAF(to url: URL, seconds: Double, sampleRate: Double, amplitude: F
         try file.write(from: buffer)
         written += n
     }
+
+    // MARK: Downmix (the realtime path)
+
+    do {
+        // Planar: one buffer per channel, averaged.
+        let left: [Float] = [1, 1, 0.5, -1]
+        let right: [Float] = [-1, -1, 0.5, 1]
+        var planar = [Float](repeating: 99, count: 4)
+        left.withUnsafeBufferPointer { leftBuffer in
+            right.withUnsafeBufferPointer { rightBuffer in
+                let list = AudioBufferList.allocate(maximumBuffers: 2)
+                defer { free(list.unsafeMutablePointer) }
+                list[0] = AudioBuffer(
+                    mNumberChannels: 1,
+                    mDataByteSize: UInt32(left.count * MemoryLayout<Float>.stride),
+                    mData: UnsafeMutableRawPointer(mutating: leftBuffer.baseAddress)
+                )
+                list[1] = AudioBuffer(
+                    mNumberChannels: 1,
+                    mDataByteSize: UInt32(right.count * MemoryLayout<Float>.stride),
+                    mData: UnsafeMutableRawPointer(mutating: rightBuffer.baseAddress)
+                )
+                planar.withUnsafeMutableBufferPointer { out in
+                    Downmix.toMono(buffers: list, frames: 4, into: out.baseAddress!)
+                }
+            }
+        }
+        expectEqual(planar, [0, 0, 0.5, 0], "downmix: planar buffers average")
+
+        // Interleaved: L R L R, averaged per frame.
+        let interleaved: [Float] = [1, -1, 0.5, -0.5, -0.5, 0.5]
+        var mono = [Float](repeating: 99, count: 3)
+        interleaved.withUnsafeBufferPointer { source in
+            mono.withUnsafeMutableBufferPointer { out in
+                Downmix.interleavedToMono(source.baseAddress!, channelCount: 2, frames: 3, into: out.baseAddress!)
+            }
+        }
+        expectEqual(mono, [0, 0, 0], "downmix: interleaved average")
+    }
+
 }

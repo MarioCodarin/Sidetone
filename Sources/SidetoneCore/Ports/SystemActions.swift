@@ -11,6 +11,8 @@ public protocol SystemActions: AnyObject {
     func open(_ url: URL)
     /// Jump to the System Settings pane where the user can grant `issue`.
     func openSettings(for issue: PermissionIssue)
+    /// Ask the user for a folder (an `NSOpenPanel` in production). Nil when cancelled.
+    func chooseFolder(startingAt url: URL) async -> URL?
     /// Quit the app.
     func quit()
 }

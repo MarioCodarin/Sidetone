@@ -6,7 +6,7 @@ struct MeetingsSection: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.xs) {
+        VStack(alignment: .leading, spacing: DS.Space.xxs) {
             SectionHeader(title: "Meetings") {
                 Button {
                     model.refreshMeetings()
@@ -19,11 +19,11 @@ struct MeetingsSection: View {
             }
 
             if model.meetings.isEmpty {
-                Text("No meetings nearby")
-                    .font(DS.Typo.secondary)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, DS.Space.s)
-                    .padding(.vertical, DS.Space.xs)
+                Text(model.calendarPermission == .granted ? "No meetings nearby" : "Calendar access is off")
+                    .font(DS.Typo.caption)
+                    .foregroundStyle(DS.Palette.textMuted)
+                    .padding(.horizontal, DS.Space.s + DS.Space.xs)
+                    .padding(.vertical, DS.Space.s)
             } else {
                 // Tick so the "in progress" highlight follows the clock while the panel stays open.
                 TimelineView(.periodic(from: .now, by: 30)) { context in

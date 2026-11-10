@@ -34,6 +34,21 @@ public final class MacSystemActions: SystemActions {
         }
     }
 
+    /// A modal folder picker. Modal (not sheet-style) because this is a menu-bar agent with no
+    /// main window to attach a sheet to.
+    public func chooseFolder(startingAt url: URL) async -> URL? {
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = url
+        panel.prompt = "Use This Folder"
+        panel.message = "Choose where Sidetone saves your recordings"
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
     public func quit() {
         NSApp.terminate(nil)
     }

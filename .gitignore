@@ -15,7 +15,7 @@ Sidetone.app/
 DerivedData/
 xcuserdata/
 
-# Local recordings (in case anyone runs from inside the repo)
+# Local recordings, in case someone runs from inside the repo
 Recordings/
 *.caf
 *.m4a
@@ -24,7 +24,7 @@ Recordings/
 icon-work/
 Sidetone.iconset/
 Sidetone-1024.png
-
-# Claude Flow local state
-.claude-flow/
 icon-preview-*.png
+
+# Screenshot output from `swift run SidetonePreview out/`
+out/

@@ -14,6 +14,8 @@ public enum Preferences {
         static let silenceThresholdDB = "silenceThresholdDB"
         static let silenceAutoStop    = "silenceAutoStopEnabled"
         static let recordMicrophone   = "recordMicrophone"
+        static let recordingsFolder   = "recordingsFolderPath"
+        static let didCompleteSetup   = "didCompleteSetup"
     }
 
     /// Seconds of two-channel silence before a recording auto-stops. Default 300 (5 min).
@@ -38,5 +40,17 @@ public enum Preferences {
     public static var silenceAutoStop: Bool {
         get { defaults.object(forKey: Key.silenceAutoStop) == nil ? true : defaults.bool(forKey: Key.silenceAutoStop) }
         set { defaults.set(newValue, forKey: Key.silenceAutoStop) }
+    }
+
+    /// Where the user keeps their takes. `nil` (the default) means `~/Documents/Recordings`.
+    public static var recordingsFolderPath: String? {
+        get { defaults.string(forKey: Key.recordingsFolder) }
+        set { defaults.set(newValue, forKey: Key.recordingsFolder) }
+    }
+
+    /// Whether the first-run setup was completed or skipped. Until then the app opens it at launch.
+    public static var didCompleteSetup: Bool {
+        get { defaults.bool(forKey: Key.didCompleteSetup) }
+        set { defaults.set(newValue, forKey: Key.didCompleteSetup) }
     }
 }

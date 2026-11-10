@@ -14,19 +14,18 @@ struct RecordingRow: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(entry.displayTitle)
                             .font(DS.Typo.body)
+                            .foregroundStyle(DS.Palette.textPrimary)
                             .lineLimit(1)
                             .truncationMode(.tail)
                         subtitle
-                            .font(DS.Typo.secondary)
-                            .foregroundStyle(.secondary)
+                            .font(DS.Typo.caption)
+                            .foregroundStyle(DS.Palette.textSecondary)
                     }
-
                     Spacer(minLength: DS.Space.xs)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityLabel(spokenLabel)
             .help(entry.audioURL == nil ? "Not mixed yet — click to mix" : "Open the stereo mix")
@@ -79,16 +78,17 @@ struct RecordingRow: View {
     /// The date, then the length, or a flagged "Not mixed" instead of the length.
     private var subtitle: Text {
         if entry.needsMix {
-            return Text("\(when) · ") + Text(Image(systemName: "exclamationmark.circle.fill")).foregroundStyle(DS.Palette.attention)
-                + Text(" Not mixed")
+            return Text("\(when) · ")
+                + Text(Image(systemName: "exclamationmark.circle.fill")).foregroundStyle(DS.Palette.attention)
+                + Text(" Needs mixing")
         }
         if let duration = entry.duration { return Text("\(when) · \(Formatting.elapsed(duration))") }
         return Text(when)
     }
 
-    /// What VoiceOver says; the icon in `subtitle` would otherwise be read out by its symbol name.
+    /// What VoiceOver says; the icon in `subtitle` would otherwise be read by its symbol name.
     private var spokenLabel: String {
-        if entry.needsMix { return "\(entry.displayTitle), \(when), not mixed" }
+        if entry.needsMix { return "\(entry.displayTitle), \(when), needs mixing" }
         if let duration = entry.duration { return "\(entry.displayTitle), \(when), \(Formatting.elapsed(duration))" }
         return "\(entry.displayTitle), \(when)"
     }

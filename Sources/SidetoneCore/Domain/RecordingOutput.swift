@@ -5,10 +5,21 @@ import Foundation
 /// Anything else in the folder (a transcript, for example) is left where it is.
 public enum RecordingOutput {
 
+    /// Root path -> the folder mtime the last scan saw. A scan is skipped when nothing changed,
+    /// so opening the panel repeatedly does not walk the whole library every time.
+    private static let scanLock = NSLock()
+    nonisolated(unsafe) private static var lastScan: [String: Date] = [:]
+
     /// Promote every finished folder under `root`. In-progress and failed mixes have no
     /// readable `audio.m4a`, so they are left untouched.
     public static func promoteFinishedFolders(in root: URL) {
         let fm = FileManager.default
+        let mtime = (try? root.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        if let mtime {
+            let unchanged = scanLock.withLock { lastScan[root.path] == mtime }
+            if unchanged { return }
+        }
+
         guard let items = try? fm.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -18,6 +29,10 @@ public enum RecordingOutput {
         for url in items {
             guard (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
             _ = promote(folder: url)
+        }
+
+        if let mtime {
+            scanLock.withLock { lastScan[root.path] = mtime }
         }
     }
 

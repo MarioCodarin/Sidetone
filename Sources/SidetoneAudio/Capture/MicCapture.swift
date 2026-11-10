@@ -107,6 +107,7 @@ public final class MicCapture: AudioCapturing {
         engine.prepare()
         do {
             try engine.start()
+            Log.capture.notice("mic started at \(inputFormat.sampleRate, format: .fixed(precision: 0)) Hz, \(inputFormat.channelCount, privacy: .public) ch")
         } catch {
             running.withLock { $0 = false }
             tearDownEngine()
@@ -152,7 +153,9 @@ public final class MicCapture: AudioCapturing {
             installTap(on: engine, format: format, writer: writer)
             engine.prepare()
             try engine.start()
+            Log.capture.notice("mic route changed; now \(format.sampleRate, format: .fixed(precision: 0)) Hz, \(format.channelCount, privacy: .public) ch")
         } catch {
+            Log.capture.error("mic restart after route change failed: \(error.localizedDescription, privacy: .public)")
             running.withLock { $0 = false }
             onFatalError?(error)
         }
@@ -205,6 +208,7 @@ public final class MicCapture: AudioCapturing {
             tearDownEngine()
             releaseWriter()
             defer { result = CaptureResult() }   // a later stop() must not report this take again
+            Log.capture.notice("mic stopped after \(self.result.frameCount, privacy: .public) frames")
             return result
         }
     }

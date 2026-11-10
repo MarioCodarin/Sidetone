@@ -1,48 +1,125 @@
 # Sidetone
 
-A small, native macOS **menu-bar app** that records your meetings and voice notes with one
-click. It captures **two audio sources at once** and mixes them into a single stereo file —
-so you can always tell who was on the call from who was in the room:
+A private, two-channel meeting recorder for macOS. One click in the menu bar records **the call on
+the left channel** and **your voice on the right**, so you can always tell who said what.
 
-- **Them / desktop audio → Left channel** (the people you hear through your speakers)
-- **You / microphone → Right channel** (you, and anyone physically with you)
+![Sidetone's panel](docs/panel-dark.png)
 
-Pure Swift / SwiftUI. No Dock icon, no external runtime, no ffmpeg — just a single
-ad-hoc-signed `.app`.
+No account, no API keys, no uploads. Everything stays on your Mac.
 
 ---
 
-## Why two channels?
+## Why two channels
 
-Most recorders give you one muddy mono mix. By hard-panning **system audio left** and **your
-mic right**, the channels stay cleanly separated:
+Most recorders hand you one muddy mono mix. Sidetone hard-pans **system audio left** and **your
+microphone right**, so the two sides stay cleanly separated:
 
-- You can mute/solo either side in any audio editor.
-- A crash loses at most a fraction of a second: each source is written to its **own raw
-  file continuously**, and the stereo mix is produced when you hit Save. Once that mix is
-  a complete file, only the `.m4a` is kept.
+- Mute or solo either side in any audio editor.
+- Tell "who was on the call" from "who was in the room" at a glance.
+- Trim one side without touching the other.
+
+The app works the same way it looks: one amber button arms a take, the ring around it becomes a
+live level meter for each channel, and the scope shows both signals while you record.
+
+| Idle | Recording |
+| --- | --- |
+| ![Idle panel](docs/panel-light.png) | ![Recording panel](docs/recording-dark.png) |
 
 ---
 
 ## Features
 
-- **One-click Record / Pause / Save / Trash** from a compact menu-bar panel.
-- **Live level meters** for both channels (Them / You) while recording.
-- **Calendar-aware**: the panel lists nearby meetings. Click one to start a recording named
-  after it; the in-progress meeting is highlighted.
-- **Recordings library**: browse and re-open past recordings from the panel, even after a
-  relaunch.
-- **Silence auto-stop**: ends a recording after a configurable period of two-channel silence
-  (default 5 min).
-- **Meeting-end notification** with a "Stop Recording" action when a meeting's scheduled end
-  passes while you're still recording.
-- **Safe to quit / crash**: quitting mid-recording saves it; an unmixed folder offers **Mix now**.
-  A finished recording is a single `.m4a`.
-- **System-audio watchdog** that rebuilds the Core Audio tap if macOS's known process-tap
-  regression makes it go silent mid-recording.
+- **One-click record / pause / save / discard** from a compact menu-bar panel. `⌘R`, `⌘P`, `⌘,`, `⌘Q`.
+- **Live two-channel scope** — desktop above the line, mic below, with the peak of each channel on
+  the record ring.
+- **Calendar-aware** — nearby meetings are listed; recording during one names the take after it, and
+  a notification offers **Stop Recording** when the meeting was scheduled to end.
+- **Your folder, your files** — choose where recordings live in the first-run setup or in Settings.
+  A finished take is a single `.m4a`; nothing else is written outside that folder.
+- **Crash-safe** — each source streams to its own raw file continuously; quitting mid-recording
+  saves it, and an unfinished mix can be rebuilt with **Mix now**.
+- **Silence auto-stop** — ends a take after a configurable stretch of two-channel silence.
+- **Mic optional** — record only the call, and the microphone is never opened.
+- **System-audio watchdog** — rebuilds the Core Audio tap if macOS's known process-tap regression
+  makes it go silent mid-recording.
+- **Local-only by design** — no network code, no accounts, no keys, no telemetry.
 
-Sidetone does **not** transcribe. Use a separate tool (for example [Voce](https://github.com))
-on the saved `audio.m4a` if you want text.
+Sidetone does **not** transcribe. Use a separate tool on the saved `.m4a` if you want text.
+
+---
+
+## Requirements
+
+- **macOS 15 or later.**
+- **Swift 6.2 toolchain** (Xcode 26 or the matching Command Line Tools) to build.
+  Xcode itself is not required: the package builds with `swift build`.
+
+## Install
+
+```sh
+git clone https://github.com/MarioCodarin/Sidetone.git
+cd Sidetone
+./build.sh --install
+```
+
+`--install` builds a release binary, assembles `Sidetone.app`, ad-hoc signs it, replaces
+`/Applications/Sidetone.app` and launches it. Without the flag, `./build.sh` only produces
+`./Sidetone.app` in the repo.
+
+The app is deliberately **non-sandboxed** (it needs system-audio capture and a user-chosen
+recordings folder) and **ad-hoc signed**. Because TCC tracks the code signature, rebuilding with a
+different signature can make macOS ask for permissions again. Set `CODESIGN_IDENTITY` to a stable
+signing certificate if you rebuild often:
+
+```sh
+CODESIGN_IDENTITY="Apple Development: you@example.com" ./build.sh --install
+```
+
+---
+
+## First run
+
+![Setup](docs/setup-dark.png)
+
+The setup window asks for three things, and explains each one:
+
+| Permission | Why | Required |
+| --- | --- | --- |
+| **Microphone** | Your voice, on the right channel. | Yes, unless you turn the mic off. |
+| **System audio** | The call, on the left channel. Asked the first time you record. | Yes. |
+| **Calendar** | Names takes after the meeting you're in. | No. |
+
+It also lets you pick the **recordings folder** (default `~/Documents/Recordings`) and finishes with
+**Start recording**. Closing the window counts as finishing; Settings → **Run setup again** reopens it.
+
+There is no key to paste: Sidetone talks to no service. The only "credentials" it needs are the macOS
+privacy grants, which are given in System Settings and can be revoked there at any time.
+
+---
+
+## Where your recordings go
+
+While a take is in progress it is a working folder:
+
+```
+~/Documents/Recordings/2026-11-10-0930-Weekly-sync/
+    desktop.caf     raw system audio, flushed continuously
+    mic.caf         raw microphone, flushed continuously
+    session.json    alignment data, used to re-mix after a crash
+```
+
+When the mix succeeds, the folder is replaced by one file next to it:
+
+```
+~/Documents/Recordings/2026-11-10-0930-Weekly-sync.m4a   stereo AAC, desktop = L, mic = R
+```
+
+The raw files are deleted only once that `.m4a` is a readable audio file. If the mix fails, the folder
+stays and the panel offers **Mix now**. CAF (not WAV) is used for the raw files so a long meeting never
+hits WAV's 4 GB ceiling.
+
+The folder is yours: point it at an external drive, a synced folder, or anywhere else. Sidetone writes
+nothing outside it, apart from its own preferences in `UserDefaults`.
 
 ---
 
@@ -50,89 +127,62 @@ on the saved `audio.m4a` if you want text.
 
 | Concern | Approach |
 | --- | --- |
-| **Desktop audio** | Core Audio **process tap** (`CATapDescription` + `AudioHardwareCreateProcessTap`) wrapped in a tap-only private aggregate device, driven by an IOProc. Needs only the *Audio Recording* permission — **not** Screen Recording. |
-| **Microphone** | A separate `AVAudioEngine` input tap. The engine is created on Record and torn down on Stop, so Sidetone does not hold the mic while idle. |
-| **Two captures, merged on stop** | Each source streams to its own raw `.caf`. They're aligned (via first-buffer host-time skew), resampled to a common 48 kHz, interleaved (L=desktop, R=mic), and encoded to AAC `.m4a` only on Save. The raw files are kept. |
-| **Realtime safety** | The IOProc runs on a hard-realtime thread. It does **memcpy only**, into a lock-free SPSC ring buffer; a background thread drains the ring to disk. |
+| **Desktop audio** | Core Audio **process tap** (`CATapDescription` + `AudioHardwareCreateProcessTap`) in a tap-only private aggregate device, driven by an IOProc. Needs *Audio Recording* — not Screen Recording. |
+| **Microphone** | A separate `AVAudioEngine` input tap, created on Record and torn down on Stop, so Sidetone does not hold the mic while idle. |
+| **Two captures, one file** | Each source streams to its own raw `.caf`; on Save they are aligned by first-buffer host time, resampled to 48 kHz, interleaved (L = desktop, R = mic) and encoded to AAC. |
+| **Realtime safety** | The IOProc only downmixes and `memcpy`s into a lock-free SPSC ring. A dedicated thread drains it to disk. No allocation, no locks shared with control code, no disk I/O on the audio thread. |
+| **Meters** | Peaks are coalesced to 20 Hz on the main thread, so hundreds of audio callbacks per second cost two SwiftUI updates. |
 
-The design is documented in depth in [`docs/research-notes.md`](docs/research-notes.md).
-
----
-
-## Requirements
-
-- **macOS 15+** (the realtime ring buffer uses the `Synchronization` module's `Atomic`).
-- **Xcode / Swift 6.x Command Line Tools** to build.
+More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
-## Build & run
+## Project layout
+
+```
+Sources/SidetoneCore/        domain, ports (protocols), state machine — Foundation/Observation only
+Sources/SidetoneAudio/       capture (system tap, mic), ring buffer, file writer, stereo mixer
+Sources/SidetoneServices/    EventKit, notifications, permissions, AppKit actions, folder picker
+Sources/Sidetone/            the menu-bar app: composition root + app delegate
+Sources/SidetoneUI/          SwiftUI views and the design system (Support/Design.swift)
+Tests/SidetoneCheck/         hardware-free checks (`swift run SidetoneCheck`)
+Tests/SidetonePreview/       dev tool: renders the real views to PNGs (light + dark)
+Assets/                      icon source (`icon.svg`) and the built `Sidetone.icns`
+docs/                        architecture and screenshots
+```
+
+## Development
 
 ```sh
-swift run SidetoneCheck   # unit checks (no hardware, no network; CLT has no XCTest)
-./make-icon.sh       # optional: regenerate Assets/Sidetone.icns from Assets/icon.svg (needs rsvg-convert)
-swift run SidetonePreview out/   # screenshot the real views, light + dark, with fixture data
-./build.sh           # swift build -c release, then assemble + ad-hoc-sign Sidetone.app
-open ./Sidetone.app  # launches as a menu-bar item (no Dock icon)
+swift run SidetoneCheck          # 180 hardware-free checks: no devices, no network, no XCTest
+swift run SidetonePreview out/   # screenshot every panel/setup/settings state, light + dark
+./make-icon.sh                   # rebuild Assets/Sidetone.icns from Assets/icon.svg (needs librsvg)
+./build.sh --install             # release build + install into /Applications
 ```
 
-The app is **non-sandboxed** and **ad-hoc signed**. If you rebuild with a different signature,
-macOS may re-issue the permission prompts (TCC tracks the code signature).
+Command Line Tools ship neither XCTest nor the Swift Testing macros, which is why the checks are a
+plain executable. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the module rules.
 
 ---
 
-## Permissions
+## Privacy
 
-Granted on first use via standard system prompts (declared in `Info.plist`):
+- **No network code.** Sidetone never contacts a server, so there is nothing to sign in to and no key
+  to paste.
+- **No account, no telemetry, no analytics.**
+- Recordings live only in the folder you choose; the app reads that folder to list recent takes.
+- While capturing, macOS shows the purple audio-capture privacy indicator — that is the system
+  telling you the tap is live, not an upload.
 
-- **Microphone** — to capture your voice.
-- **System Audio Recording** — desktop audio via the Core Audio process tap. This is the
-  *audio* permission, **not** Screen Recording; you'll see the purple privacy dot while
-  recording.
-- **Calendars (full access)** — to list nearby meetings and name recordings after them.
-- **Notifications** — for the "meeting ended — still recording" alert.
-
----
-
-## File layout
-
-While a take is in progress it is a working folder,
-`~/Documents/Recordings/{YYYY-M-D}-{HHMM}[-{meeting}]/`:
-
-```
-desktop.caf    raw mono system audio  (flushed continuously while recording)
-mic.caf        raw mono microphone    (flushed continuously while recording)
-session.json   alignment data, used to re-mix if the mix failed or was interrupted
-```
-
-When the mix succeeds, that folder is replaced by one file next to it:
-
-```
-{YYYY-M-D}-{HHMM}[-{meeting}].m4a    stereo AAC — desktop = L, mic = R
-```
-
-The raw files are deleted only after that `.m4a` is a readable audio file. If the mix fails,
-the folder stays and the panel offers **Mix now**. A file you added yourself (for example a
-transcript) is left in the folder. CAF (not WAV) is used for the raw files so a long meeting
-does not hit the 4 GB WAV ceiling while it is still being captured.
+If you find a security or privacy issue, see [`SECURITY.md`](SECURITY.md).
 
 ---
 
-## Project structure
+## Limitations
 
-```
-Sources/SidetoneCore/        domain, ports (protocols), SidetoneModel state machine (no system frameworks)
-Sources/SidetoneAudio/       capture (system tap, mic), file writer, ring buffer, streaming stereo mixer
-Sources/SidetoneServices/    EventKit, notifications, permissions, AppKit actions
-Sources/Sidetone/            menu-bar app: composition root
-Sources/SidetoneUI/          SwiftUI views + design system (Support/Design.swift)
-Tests/SidetonePreview/       dev tool: screenshots the views with fixture data
-Tests/SidetoneCheck/         hardware-free checks (`swift run SidetoneCheck`)
-Assets/                      icon.svg (source) + Sidetone.icns
-docs/ARCHITECTURE.md         modules, recording flow, threading model
-```
-
----
+- Two channels, one file: there is no per-app audio splitting and no transcription.
+- On speakers the mic can pick up the room; headphones give the cleanest separation.
+- Ad-hoc signing means a rebuild can reset the macOS privacy grants.
 
 ## License
 

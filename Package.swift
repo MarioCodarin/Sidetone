@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.2
 import PackageDescription
 
 // Module graph (arrows point at dependencies):
@@ -11,7 +11,10 @@ import PackageDescription
 // SidetoneCore imports only Foundation/Observation, so its state machine is testable with
 // fakes. Everything that touches hardware or a system framework lives in Audio or Services.
 
-let swift5: [SwiftSetting] = [.swiftLanguageMode(.v5)]
+// Swift 5 language mode: the realtime/CoreAudio code passes raw pointers across callbacks,
+// which Swift 6's strict checking models poorly, and the app has no concurrency bugs to chase.
+// Tools version 6.2 still gives the newer manifest features and diagnostics.
+let languageMode: [SwiftSetting] = [.swiftLanguageMode(.v5)]
 
 let package = Package(
     name: "Sidetone",
@@ -27,14 +30,14 @@ let package = Package(
     ],
     targets: [
         // Domain types, ports (protocols) and the `SidetoneModel` state machine.
-        .target(name: "SidetoneCore", path: "Sources/SidetoneCore", swiftSettings: swift5),
+        .target(name: "SidetoneCore", path: "Sources/SidetoneCore", swiftSettings: languageMode),
 
         // Realtime capture (system tap, mic), lock-free ring, file writer, streaming stereo mixer.
         .target(
             name: "SidetoneAudio",
             dependencies: ["SidetoneCore"],
             path: "Sources/SidetoneAudio",
-            swiftSettings: swift5
+            swiftSettings: languageMode
         ),
 
         // Adapters for macOS services: EventKit, UserNotifications, permissions, AppKit actions.
@@ -42,7 +45,7 @@ let package = Package(
             name: "SidetoneServices",
             dependencies: ["SidetoneCore"],
             path: "Sources/SidetoneServices",
-            swiftSettings: swift5
+            swiftSettings: languageMode
         ),
 
         // The SwiftUI views (panel, settings, design tokens). Depends only on Core, so a
@@ -51,7 +54,7 @@ let package = Package(
             name: "SidetoneUI",
             dependencies: ["SidetoneCore"],
             path: "Sources/SidetoneUI",
-            swiftSettings: swift5
+            swiftSettings: languageMode
         ),
 
         // The menu-bar app: composition root.
@@ -59,7 +62,7 @@ let package = Package(
             name: "Sidetone",
             dependencies: ["SidetoneCore", "SidetoneAudio", "SidetoneServices", "SidetoneUI"],
             path: "Sources/Sidetone",
-            swiftSettings: swift5
+            swiftSettings: languageMode
         ),
 
         // Command Line Tools ship neither XCTest nor TestingMacros, so checks
@@ -68,7 +71,7 @@ let package = Package(
             name: "SidetoneCheck",
             dependencies: ["SidetoneCore", "SidetoneAudio"],
             path: "Tests/SidetoneCheck",
-            swiftSettings: swift5
+            swiftSettings: languageMode
         ),
 
         // Dev tool: hosts the real views with fixture data and screenshots them in light and
@@ -77,7 +80,7 @@ let package = Package(
             name: "SidetonePreview",
             dependencies: ["SidetoneCore", "SidetoneUI"],
             path: "Tests/SidetonePreview",
-            swiftSettings: swift5
+            swiftSettings: languageMode
         )
     ]
 )

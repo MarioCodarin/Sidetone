@@ -6,7 +6,7 @@ struct RecentRecordingsSection: View {
     @Environment(SidetoneModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.xs) {
+        VStack(alignment: .leading, spacing: DS.Space.xxs) {
             SectionHeader(title: "Recent") {
                 Button("Show all") { model.openRecordingsFolder() }
                     .buttonStyle(QuietButtonStyle())

@@ -10,20 +10,28 @@ struct PermissionBanner: View {
             ForEach(model.permissionIssues) { issue in
                 HStack(alignment: .center, spacing: DS.Space.s) {
                     Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
                         .foregroundStyle(DS.Palette.attention)
                         .accessibilityHidden(true)
                     Text(issue.explanation)
-                        .font(DS.Typo.secondary)
+                        .font(DS.Typo.caption)
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: DS.Space.xs)
                     Button("Open Settings") { model.openSettings(for: issue) }
-                        .buttonStyle(ActionButtonStyle(prominent: false, height: 24))
+                        .buttonStyle(TextActionButtonStyle())
                         .fixedSize()
+                        .help("Open System Settings")
                 }
                 .padding(DS.Space.s)
                 .background(
-                    RoundedRectangle(cornerRadius: DS.Radius.m, style: .continuous)
-                        .fill(DS.Palette.attention.opacity(0.12))
+                    RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous)
+                        .fill(DS.Palette.attention.opacity(0.10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.s, style: .continuous)
+                        .strokeBorder(DS.Palette.attention.opacity(0.22), lineWidth: 1)
                 )
                 .accessibilityElement(children: .contain)
             }

@@ -35,6 +35,21 @@ public final class CalendarAccess: MeetingProviding {
 
     // MARK: - Authorization
 
+    /// Current access without prompting.
+    public func authorizationStatus() -> PermissionStatus {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess, .authorized:
+            return .granted
+        case .notDetermined:
+            return .notDetermined
+        case .writeOnly, .denied, .restricted:
+            // Read access is what matters; write-only cannot list events.
+            return .denied
+        @unknown default:
+            return .denied
+        }
+    }
+
     /// Requests full calendar access (write-only cannot read existing events). Switches on the
     /// `EKAuthorizationStatus` CASE, never the raw value: `.authorized` and `.fullAccess` collide on 3.
     public func requestAccess() async -> Bool {

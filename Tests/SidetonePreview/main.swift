@@ -13,7 +13,7 @@ import SidetoneUI
 
 // MARK: - Fakes (a smaller copy of the ones in SidetoneCheck)
 
-final class StubCapture: AudioCapturing {
+final class StubCapture: AudioCapturing, @unchecked Sendable {
     var onLevelDB: ((Float) -> Void)?
     var onFatalError: ((Error) -> Void)?
     func start(writingTo url: URL) throws { FileManager.default.createFile(atPath: url.path, contents: Data([0])) }
@@ -33,6 +33,7 @@ final class StubMixer: AudioMixing, @unchecked Sendable {
     var onChange: (() -> Void)?
     var granted = true
     var list: [Meeting] = []
+    func authorizationStatus() -> PermissionStatus { granted ? .granted : .denied }
     func requestAccess() async -> Bool { granted }
     func meetingsAroundNow(_ now: Date) -> [Meeting] { list }
 }
@@ -55,6 +56,7 @@ final class StubPermissions: PermissionsProviding {
     func reveal(_ url: URL) {}
     func open(_ url: URL) {}
     func openSettings(for issue: PermissionIssue) {}
+    func chooseFolder(startingAt url: URL) async -> URL? { nil }
     func quit() {}
 }
 
@@ -63,6 +65,7 @@ final class StubPermissions: PermissionsProviding {
 struct Scenario {
     let name: String
     let isSettings: Bool
+    var isSetup = false
     /// Seconds the fixture clock is advanced after recording starts.
     var recordedSeconds: TimeInterval = 0
     var meetings = false
@@ -81,9 +84,10 @@ struct Scenario {
     var hoverRow: Int?
     enum Finish { case mixing, saved }
 
-    init(_ name: String, isSettings: Bool = false) {
+    init(_ name: String, isSettings: Bool = false, isSetup: Bool = false) {
         self.name = name
         self.isSettings = isSettings
+        self.isSetup = isSetup
     }
 }
 
@@ -100,12 +104,14 @@ let scenarios: [Scenario] = {
     var mixing = Scenario("mixing"); mixing.meetings = true; mixing.recordings = 2; mixing.recordedSeconds = 90; mixing.finish = .mixing
     var saved = mixing.renamed("saved"); saved.finish = .saved
     var hover = idle.renamed("hover"); hover.hoverRow = 1
-    return [idle, empty, rec, paused, adhoc, perms, micOff, long, many, mixing, saved, hover, Scenario("settings", isSettings: true)]
+    var setup = Scenario("setup", isSetup: true); setup.meetings = true
+    return [idle, empty, rec, paused, adhoc, perms, micOff, long, many, mixing, saved, hover,
+            Scenario("settings", isSettings: true), setup]
 }()
 
 extension Scenario {
     func renamed(_ name: String) -> Scenario {
-        var copy = Scenario(name, isSettings: isSettings)
+        var copy = Scenario(name, isSettings: isSettings, isSetup: isSetup)
         copy.recordedSeconds = recordedSeconds; copy.meetings = meetings; copy.recordings = recordings
         copy.recordMeeting = recordMeeting; copy.pause = pause; copy.denyMic = denyMic
         copy.denyCalendar = denyCalendar; copy.error = error; copy.micOff = micOff; copy.longTitles = longTitles
@@ -190,6 +196,19 @@ func makeModel(_ s: Scenario, root: URL) -> SidetoneModel {
         mic.onLevelDB?(s.micOff ? -90 : -32)
         if s.pause { model.togglePause() }
         if s.finish != nil { model.saveAndStop() }
+        if s.finish == nil && !s.pause {
+            // Drive the capture callbacks for a few seconds so the scope has a history.
+            var tick = 0
+            let timer = Timer(timeInterval: 0.05, repeats: true) { timer in
+                tick += 1
+                let desktopDB = -8 - 38 * abs(sin(Double(tick) * 0.23 + 0.4))
+                let micDB = -14 - 34 * abs(sin(Double(tick) * 0.31 + 2.2))
+                desktop.onLevelDB?(Float(desktopDB))
+                if !s.micOff { mic.onLevelDB?(Float(micDB)) }
+                if tick > 140 { timer.invalidate() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+        }
     }
     if let error = s.error { desktop.onFatalError?(NSError(domain: "preview", code: 1, userInfo: [NSLocalizedDescriptionKey: "the audio device went away."])); _ = error }
     return model
@@ -206,15 +225,22 @@ final class PreviewWindow: NSWindow {
 
 @MainActor
 func host(_ s: Scenario, model: SidetoneModel, appearance: NSAppearance.Name) -> NSWindow {
-    let content: AnyView = s.isSettings
-        ? AnyView(PreferencesView().environment(model))
-        : AnyView(SidetonePanel().environment(model))
+    let content: AnyView = s.isSetup
+        ? AnyView(SetupView().environment(model))
+        : s.isSettings
+            ? AnyView(PreferencesView().environment(model))
+            : AnyView(SidetonePanel().environment(model))
     let hosting = NSHostingView(rootView: content)
     hosting.layoutSubtreeIfNeeded()
     let size = hosting.fittingSize
 
     let window: NSWindow
-    if s.isSettings {
+    if s.isSetup {
+        window = PreviewWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable],
+                               backing: .buffered, defer: false)
+        window.title = SetupWindowController.windowTitle
+        window.contentView = hosting
+    } else if s.isSettings {
         window = PreviewWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable, .miniaturizable],
                           backing: .buffered, defer: false)
         window.title = "Sidetone Settings"
@@ -260,6 +286,7 @@ func run() async {
         print("usage: SidetonePreview <out-dir> [scenario ...]")
         exit(2)
     }
+    Preferences.defaults = UserDefaults(suiteName: "sidetone.preview") ?? .standard
     let outDir = URL(fileURLWithPath: outPath, isDirectory: true)
     try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
     // `--settings-window`: open the *real* Settings window controller and wait, so its keyboard
@@ -278,6 +305,10 @@ func run() async {
         for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             let model = makeModel(scenario, root: work.appendingPathComponent("\(scenario.name)-\(suffix)"))
             let window = host(scenario, model: model, appearance: appearance)
+            // Let a recording's fixture levels fill enough of the scope to photograph.
+            if scenario.recordedSeconds > 0 && scenario.finish == nil && !scenario.pause {
+                await pump(2.4)
+            }
             await pump(0.5)   // let the model's async launch work (permissions, calendar) land
             if let hosting = window.contentView?.subviews.first as? NSHostingView<AnyView> ?? window.contentView as? NSHostingView<AnyView> {
                 window.setContentSize(hosting.fittingSize)

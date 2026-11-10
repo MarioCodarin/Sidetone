@@ -44,7 +44,6 @@ public final class MonoFileWriter {
     private let finished = DispatchSemaphore(value: 0)
     private var didFinish = false
 
-    private static let log = Logger(subsystem: "com.mariocodarin.Sidetone", category: "MonoFileWriter")
     private static let chunkFrames = 4096
 
     /// - Parameters:
@@ -106,8 +105,9 @@ public final class MonoFileWriter {
             finished.wait()
             file = nil    // last reference: flushes and closes
             if ring.totalDropped > 0 {
-                Self.log.error("capture dropped \(self.ring.totalDropped) frames (consumer fell behind)")
+                Log.capture.error("capture dropped \(self.ring.totalDropped, privacy: .public) frames (consumer fell behind)")
             }
+            Log.capture.notice("capture file closed: \(self.framesWritten.load(ordering: .relaxed), privacy: .public) frames at \(Int(self.fileSampleRate), privacy: .public) Hz")
         }
         let first = firstHostTime.load(ordering: .relaxed)
         return Summary(

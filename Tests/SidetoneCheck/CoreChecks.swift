@@ -230,4 +230,53 @@ private func writeSilentM4A(_ url: URL) throws {
         forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false
     )
     try file.write(from: buffer)
+
+    // MARK: MeterBridge
+
+    do {
+        var deliveries: [(desktop: Float?, mic: Float?)] = []
+        let bridge = MeterBridge(interval: 0.03) { desktop, mic in
+            deliveries.append((desktop, mic))
+        }
+        // A burst of per-buffer callbacks must collapse into one main-thread delivery.
+        for db in stride(from: Float(-60), through: -20, by: 5) { bridge.submit(db, source: .desktop) }
+        bridge.submit(-12, source: .mic)
+        pump(0.2)
+        expectEqual(deliveries.count, 1, "meter bridge coalesces a 20 ms window into one delivery")
+        expectEqual(deliveries.first?.desktop, -20, "meter bridge keeps the desktop peak")
+        expectEqual(deliveries.first?.mic, -12, "meter bridge delivers the mic peak")
+
+        // A later window delivers again.
+        bridge.submit(-30, source: .desktop)
+        pump(0.2)
+        expectEqual(deliveries.count, 2, "meter bridge delivers the next window")
+    }
+
+    // MARK: RecordingsLocation
+
+    do {
+        let suiteName = "sidetone.location.\(UUID().uuidString)"
+        let suite = UserDefaults(suiteName: suiteName)!
+        suite.removePersistentDomain(forName: suiteName)
+        let previous = Preferences.defaults
+        Preferences.defaults = suite
+        defer {
+            Preferences.defaults = previous
+            suite.removePersistentDomain(forName: suiteName)
+        }
+
+        expectEqual(RecordingsLocation.currentRoot(), RecordingsLocation.defaultRoot, "default recordings root")
+        let custom = URL(fileURLWithPath: "/tmp/sidetone-custom-recordings", isDirectory: true)
+        expectEqual(RecordingsLocation.setCustomRoot(custom), custom, "custom root round-trips")
+        expectEqual(Preferences.recordingsFolderPath, custom.path, "custom root is persisted")
+        expectEqual(RecordingsLocation.currentRoot(), custom, "current root follows the preference")
+        _ = RecordingsLocation.setCustomRoot(nil)
+        expectEqual(RecordingsLocation.currentRoot(), RecordingsLocation.defaultRoot, "reset restores the default")
+        expectEqual(RecordingsLocation.setCustomRoot(custom).path, custom.path, "custom root again")
+        _ = RecordingsLocation.setCustomRoot(nil)
+
+        // An injected override (tests, previews) always wins.
+        expectEqual(RecordingsLocation.currentRoot(override: custom), custom, "override wins")
+    }
+
 }

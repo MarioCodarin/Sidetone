@@ -13,7 +13,7 @@ struct FooterView: View {
                 Label("Recordings", systemImage: "folder")
             }
             .buttonStyle(QuietButtonStyle())
-            .help("Open ~/Documents/Recordings in Finder")
+            .help("Open \(model.recordingsFolderDisplay) in Finder")
 
             Spacer()
 

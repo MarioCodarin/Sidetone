@@ -4,15 +4,15 @@ import SidetoneCore
 
 /// Owns the dedicated **Preferences window** for this menu-bar (`.accessory`) app.
 ///
-/// We manage the window directly with AppKit instead of using SwiftUI's `Settings`
-/// scene. Opening a `Settings` window reliably from an LSUIElement / `.accessory`
-/// app is a long-standing pain point — it tends to open *behind* other apps or
-/// never takes key focus. A hand-rolled `NSWindow` hosting the SwiftUI
-/// `PreferencesView`, brought front with `makeKeyAndOrderFront` right after
-/// `NSApp.activate`, is the dependable pattern and needs no policy juggling.
+/// We manage the window directly with AppKit instead of using SwiftUI's `Settings` scene.
+/// Opening a `Settings` window reliably from an LSUIElement / `.accessory` app is a long-standing
+/// pain point — it tends to open *behind* other apps or never takes key focus. A hand-rolled
+/// `NSWindow` hosting the SwiftUI `PreferencesView`, brought front with `makeKeyAndOrderFront`
+/// right after `NSApp.activate`, is the dependable pattern and needs no policy juggling.
 @MainActor
 public final class PreferencesWindowController: NSObject, NSWindowDelegate {
     public static let shared = PreferencesWindowController()
+    public static let windowTitle = "Sidetone Settings"
 
     private static let frameName = "SidetoneSettings"
     private var window: NSWindow?
@@ -29,11 +29,15 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
         }
 
         let hosting = NSHostingController(rootView: PreferencesView().environment(model))
+        hosting.view.layoutSubtreeIfNeeded()
+        let size = hosting.view.fittingSize
+
         let window = SettingsWindow(contentViewController: hosting)
-        window.title = "Sidetone Settings"
+        window.title = Self.windowTitle
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.delegate = self
+        window.setContentSize(size)
         // Reopen where the user left it; centre only the very first time.
         if !window.setFrameUsingName(Self.frameName) { window.center() }
         window.setFrameAutosaveName(Self.frameName)
@@ -49,6 +53,8 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
 
 /// A menu-bar agent has no main menu, so ⌘W and Esc would do nothing; handle them here.
 private final class SettingsWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
            event.charactersIgnoringModifiers == "w" {

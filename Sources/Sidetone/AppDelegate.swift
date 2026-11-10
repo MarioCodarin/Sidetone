@@ -1,5 +1,6 @@
 import AppKit
 import SidetoneCore
+import SidetoneUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -11,6 +12,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Menu-bar-only agent app: no Dock icon, no app-switcher entry.
         NSApp.setActivationPolicy(.accessory)
         model.launch()
+
+        // First run: permissions + where recordings live. Once, then never again.
+        if !model.isSetupComplete {
+            DispatchQueue.main.async { [model] in
+                SetupWindowController.shared.show(model: model)
+            }
+        }
     }
 
     /// Quitting mid-recording (or mid-mix) must not lose the recording: save it and let the

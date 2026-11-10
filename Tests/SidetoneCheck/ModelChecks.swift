@@ -60,6 +60,7 @@ final class FakeMeetings: MeetingProviding {
     var onChange: (() -> Void)?
     var granted = true
     var list: [Meeting] = []
+    func authorizationStatus() -> PermissionStatus { granted ? .granted : .denied }
     func requestAccess() async -> Bool { granted }
     func meetingsAroundNow(_ now: Date) -> [Meeting] { list }
 }
@@ -89,6 +90,7 @@ final class FakeActions: SystemActions {
     func reveal(_ url: URL) {}
     func open(_ url: URL) { opened.append(url) }
     func openSettings(for issue: PermissionIssue) { settings.append(issue) }
+    func chooseFolder(startingAt url: URL) async -> URL? { nil }
     func quit() { quitCount += 1 }
 }
 
@@ -147,6 +149,16 @@ func runModelChecks() throws {
         rig.model.startRecording(meeting: nil)
         expectEqual(rig.desktop.startCount, 1, "second start while recording is ignored")
         rig.model.trashAndStop()
+    }
+
+    // The take in progress is not listed as a finished recent recording.
+    try withRig { rig in
+        rig.model.startRecording(meeting: nil)
+        rig.model.refreshRecordings()
+        expect(rig.model.recentRecordings.isEmpty, "the take in progress is not in Recent")
+        rig.model.trashAndStop()
+        rig.model.refreshRecordings()
+        expect(rig.model.recentRecordings.isEmpty, "a discarded take leaves nothing behind")
     }
 
     // Mic recording off: the mic is never opened, even if its permission is denied.

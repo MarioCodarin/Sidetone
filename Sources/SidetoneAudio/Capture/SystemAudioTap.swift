@@ -85,8 +85,6 @@ public final class SystemAudioTap: AudioCapturing {
     private let scratchCapacity = 16_384
     private var capturedResult = CaptureResult()
 
-    private static let log = Logger(subsystem: "com.mariocodarin.Sidetone", category: "SystemAudioTap")
-
     // MARK: - Realtime-path flags (separate locks so the IOProc never waits on `lock`)
 
     private let paused = OSAllocatedUnfairLock<Bool>(initialState: false)
@@ -166,6 +164,7 @@ public final class SystemAudioTap: AudioCapturing {
         started = true
         lastLoudHostTime.withLock { $0 = mach_absolute_time() }
         startWatchdog()
+        Log.capture.notice("desktop tap started at \(tapFormat.sampleRate, format: .fixed(precision: 0)) Hz, \(tapFormat.channelCount, privacy: .public) ch")
     }
 
     /// Gate writes. Device keeps running, meters keep updating. Thread-safe.
@@ -187,6 +186,7 @@ public final class SystemAudioTap: AudioCapturing {
         // stopped after this; only then is it safe to drain and close the writer.
         destroyTapAndAggregateLocked()
         releaseWriterLocked()
+        Log.capture.notice("desktop tap stopped after \(self.capturedResult.frameCount, privacy: .public) frames")
         return capturedResult
     }
 
@@ -319,16 +319,24 @@ public final class SystemAudioTap: AudioCapturing {
     ) {
         let now = mach_absolute_time()
 
-        // Wrap the incoming buffer list without copying.
-        guard let pcm = AVAudioPCMBuffer(pcmFormat: context.format, bufferListNoCopy: inputData, deallocator: nil),
-              pcm.frameLength > 0,
-              let channelData = pcm.floatChannelData else { return }
+        // Process taps deliver Float32; anything else is not something we can downmix safely.
+        guard context.format.commonFormat == .pcmFormatFloat32 else { return }
 
-        let frames = Int(pcm.frameLength)
-        let channelCount = Int(context.format.channelCount)
+        // Read the buffer list in place. (An `AVAudioPCMBuffer(pcmFormat:bufferListNoCopy:)`
+        // here would allocate an object on every callback — not realtime-safe.)
+        let buffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: inputData))
+        guard let first = buffers.first, let firstData = first.mData else { return }
+
+        let channelsPerBuffer = max(1, Int(first.mNumberChannels))
+        let planar = buffers.count > 1 || channelsPerBuffer == 1
+        let frames = Int(first.mDataByteSize) / (MemoryLayout<Float>.stride * channelsPerBuffer)
+        guard frames > 0 else { return }
 
         // Meter + watchdog input (channel 0 is cheap and representative).
-        let db = RMSMeter.dBFS(samples: channelData[0], count: frames)
+        let samples = firstData.assumingMemoryBound(to: Float.self)
+        let db = planar
+            ? RMSMeter.dBFS(samples: samples, count: frames)
+            : RMSMeter.dBFS(interleaved: samples, stride: channelsPerBuffer, frames: frames)
         if db > Self.aliveFloorDB {
             lastLoudHostTime.withLock { $0 = now }
         }
@@ -342,17 +350,34 @@ public final class SystemAudioTap: AudioCapturing {
 
         // REALTIME-SAFE ONLY below: downmix into preallocated scratch, memcpy into the ring.
         let hostTime = inputTime.pointee.mHostTime
-        if channelCount <= 1 {
-            context.writer.write(channelData[0], count: frames, hostTime: hostTime)
+
+        if planar {
+            // One buffer per channel (the usual process-tap layout). Mono passes straight through.
+            if buffers.count == 1 && channelsPerBuffer == 1 {
+                context.writer.write(samples, count: frames, hostTime: hostTime)
+                return
+            }
+            var offset = 0
+            while offset < frames {
+                let chunk = min(frames - offset, context.scratchCapacity)
+                Downmix.toMono(
+                    buffers: buffers, offset: offset, frames: chunk, into: context.scratch
+                )
+                context.writer.write(context.scratch, count: chunk, hostTime: hostTime)
+                offset += chunk
+            }
             return
         }
-        // IO buffers are tiny, so this loop runs once in practice.
+
+        // Interleaved stereo/multichannel: deinterleave + average into scratch, chunk by chunk.
         var offset = 0
         while offset < frames {
             let chunk = min(frames - offset, context.scratchCapacity)
-            Downmix.toMono(
-                channels: channelData, channelCount: channelCount,
-                offset: offset, frames: chunk, into: context.scratch
+            Downmix.interleavedToMono(
+                samples + offset * channelsPerBuffer,
+                channelCount: channelsPerBuffer,
+                frames: chunk,
+                into: context.scratch
             )
             context.writer.write(context.scratch, count: chunk, hostTime: hostTime)
             offset += chunk
@@ -426,6 +451,7 @@ public final class SystemAudioTap: AudioCapturing {
 
         // Give the fresh tap a fair window before judging it again.
         lastLoudHostTime.withLock { $0 = mach_absolute_time() }
+        Log.capture.notice("desktop tap rebuilt after \(self.watchdogSilenceThreshold, format: .fixed(precision: 0)) s of silence")
     }
 
     // MARK: - Core Audio property helpers

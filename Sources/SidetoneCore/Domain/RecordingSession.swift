@@ -6,6 +6,8 @@ public enum RecordingFiles {
     public static let desktop = "desktop.caf"
     public static let mic = "mic.caf"
     public static let mix = "audio.m4a"
+    /// Mono, cleaned mic-only track kept beside the stereo mix for transcription tools.
+    public static let voice = "voice.m4a"
     public static let info = "session.json"
 }
 

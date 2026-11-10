@@ -3,6 +3,12 @@
 The product rule stays the same in every item below: **one primary action, quiet chrome, and nothing
 leaves the Mac unless the user brings their own key for an optional feature.**
 
+## Shipped in 1.2
+
+- Mix-time voice chain: rumble filter, gentle noise-floor reduction, level matching, limiter.
+- A mono, cleaned, level-matched `.voice.m4a` beside every take, for transcription tools.
+- Settings → Voice toggles; the raw captures remain untouched and re-mixable.
+
 ## Shipped in 1.1
 
 - Redesigned panel: one record control, a live two-channel scope, one amber accent.
@@ -27,12 +33,14 @@ leaves the Mac unless the user brings their own key for an optional feature.**
 ## Later (bigger bets)
 
 7. **Optional transcription with the user's own key.** Off by default, key stored in the macOS
-   Keychain, audio sent only when the user presses "Transcribe". This is the one feature that would
-   justify a key field; it must never become a silent upload. Until then, the app intentionally has
-   no keys to configure.
+   Keychain, audio sent only when the user presses "Transcribe" on a take. The cleaned
+   `.voice.m4a` is what would be sent. This is the one feature that would justify a key field; it
+   must never become a silent upload. Until then, the app intentionally has no keys to configure.
 8. **Channel routing options.** Keep the default hard split (L = call, R = you), add "two mono files"
    and "centered mix" for people who want a single-ear friendly file.
-9. **Quality controls.** AAC bitrate choice, and a lossless FLAC option for archival takes.
+9. **Quality controls.** AAC bitrate choice, a lossless option for archival takes, and an optional
+   macOS voice-processing mode (echo cancellation / stronger suppression) once it can be tested on
+   real devices.
 10. **Distribution.** Notarized, signed release plus a Homebrew cask so updating does not reset the
     macOS privacy grants (TCC keys on the code signature).
 

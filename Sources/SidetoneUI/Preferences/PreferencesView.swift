@@ -13,7 +13,7 @@ public struct PreferencesView: View {
         @Bindable var model = model
         let minutes = Int((model.silenceTimeout / 60).rounded())
 
-        VStack(alignment: .leading, spacing: DS.Space.l + DS.Space.xs) {
+        VStack(alignment: .leading, spacing: DS.Space.l) {
             header
 
             SettingsCard(title: "Recording") {
@@ -56,6 +56,28 @@ public struct PreferencesView: View {
                             .buttonStyle(TextActionButtonStyle())
                             .fixedSize()
                     }
+                }
+            }
+
+            SettingsCard(title: "Voice") {
+                SettingsRow(title: "Clean up the mic",
+                            detail: "Rumble filter and gentle noise-floor reduction on your voice.") {
+                    Toggle("", isOn: $model.voiceClarity)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .tint(DS.Palette.accent)
+                        .accessibilityLabel("Clean up the microphone channel")
+                }
+
+                SettingsDivider()
+
+                SettingsRow(title: "Voice track for transcription",
+                            detail: "Also save a mono, mic-only .m4a beside each recording.") {
+                    Toggle("", isOn: $model.saveVoiceTrack)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .tint(DS.Palette.accent)
+                        .accessibilityLabel("Save a mono voice track")
                 }
             }
 
@@ -118,20 +140,11 @@ public struct PreferencesView: View {
                             detail: "No account, no keys, no uploads. A finished take is one .m4a file.") {
                     EmptyView()
                 }
-                SettingsDivider()
-                SettingsRow(title: "Setup", detail: "Permissions and the recordings folder.") {
-                    Button("Run setup again") {
-                        model.replaySetup()
-                        SetupWindowController.shared.show(model: model)
-                    }
-                    .buttonStyle(QuietButtonStyle())
-                    .fixedSize()
-                }
             }
 
             footer
         }
-        .padding(DS.Space.xl - DS.Space.xs)
+        .padding(DS.Space.l)
         .frame(width: DS.Size.settingsWidth)
         .background(DS.Palette.canvas)
     }
@@ -152,6 +165,11 @@ public struct PreferencesView: View {
                 .font(DS.Typo.mono)
                 .foregroundStyle(DS.Palette.textMuted)
             Spacer()
+            Button("Run setup again") {
+                model.replaySetup()
+                SetupWindowController.shared.show(model: model)
+            }
+            .buttonStyle(QuietButtonStyle())
             Button("GitHub") { model.open(repoURL) }
                 .buttonStyle(QuietButtonStyle())
         }
@@ -219,7 +237,7 @@ private struct SettingsRow<Control: View>: View {
             control()
         }
         .padding(.horizontal, DS.Space.m)
-        .padding(.vertical, DS.Space.m - 2)
+        .padding(.vertical, DS.Space.s)
     }
 }
 

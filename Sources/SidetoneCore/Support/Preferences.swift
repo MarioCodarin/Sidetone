@@ -16,6 +16,8 @@ public enum Preferences {
         static let recordMicrophone   = "recordMicrophone"
         static let recordingsFolder   = "recordingsFolderPath"
         static let didCompleteSetup   = "didCompleteSetup"
+        static let voiceClarity       = "voiceClarity"
+        static let saveVoiceTrack     = "saveVoiceTrack"
     }
 
     /// Seconds of two-channel silence before a recording auto-stops. Default 300 (5 min).
@@ -52,5 +54,17 @@ public enum Preferences {
     public static var didCompleteSetup: Bool {
         get { defaults.bool(forKey: Key.didCompleteSetup) }
         set { defaults.set(newValue, forKey: Key.didCompleteSetup) }
+    }
+
+    /// High-pass + gentle noise-floor reduction on the voice channel. Default true.
+    public static var voiceClarity: Bool {
+        get { defaults.object(forKey: Key.voiceClarity) == nil ? true : defaults.bool(forKey: Key.voiceClarity) }
+        set { defaults.set(newValue, forKey: Key.voiceClarity) }
+    }
+
+    /// Write a cleaned, mic-only `.voice.m4a` beside each recording, for transcription. Default true.
+    public static var saveVoiceTrack: Bool {
+        get { defaults.object(forKey: Key.saveVoiceTrack) == nil ? true : defaults.bool(forKey: Key.saveVoiceTrack) }
+        set { defaults.set(newValue, forKey: Key.saveVoiceTrack) }
     }
 }

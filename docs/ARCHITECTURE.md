@@ -13,7 +13,7 @@ Sidetone (app) ──► SidetoneServices ──► SidetoneCore
 | Target | Imports | Contents |
 | --- | --- | --- |
 | **SidetoneCore** | Foundation, Observation, os | Domain types (`Meeting`, `RecordingSession`, `SessionInfo`, `RecordingsLocation`, `RecordingsLibrary`, `Preferences`), ports (`AudioCapturing`, `AudioMixing`, `MeetingProviding`, `MeetingAlerting`, `PermissionsProviding`, `SystemActions`), `SilenceMonitor`, `MeterBridge`, `WaveformData`, and `SidetoneModel`, the `@Observable` state machine. |
-| **SidetoneAudio** | AVFoundation, CoreAudio, Accelerate | `SystemAudioTap`, `MicCapture`, `MonoFileWriter`, `FloatRingBuffer`, `Downmix`, `RMSMeter`, `StereoMixer` (+ `MonoSource`). |
+| **SidetoneAudio** | AVFoundation, CoreAudio, Accelerate | `SystemAudioTap`, `MicCapture`, `MonoFileWriter`, `FloatRingBuffer`, `Downmix`, `RMSMeter`, `LevelStats`, `VoiceChain`, `StereoMixer` (+ `MonoSource`). |
 | **SidetoneServices** | EventKit, UserNotifications, AppKit | `CalendarAccess`, `NotificationManager`, `SystemPermissions`, `MacSystemActions` (including the folder picker). |
 | **SidetoneUI** | SwiftUI, AppKit, Core | Panel, setup, settings and the design tokens in `Support/Design.swift`. Depends only on Core, so the preview harness can host every screen with fakes. |
 | **Sidetone** | Core, Audio, Services, UI | `AppEnvironment` (composition root), `AppDelegate`, the `@main` app. |
@@ -27,10 +27,13 @@ record / pause / save / discard / re-mix / quit flow with fakes — no hardware,
    `~/Documents/Recordings`) and creates `{yyyy-M-d}-{HHmm}[-title][-N]/`.
 2. Both captures start, each streaming mono Float32 to its own CAF (`desktop.caf`, `mic.caf`).
 3. `saveAndStop` stops both, writes `session.json` (each capture's first host time, rate, frame
-   count), then mixes in the background into `audio.m4a`.
-4. `RecordingOutput.promote` moves a readable mix out to `{folder}.m4a`, deletes the raw files, and
-   removes the folder when empty. If the mix fails or the app dies first, the folder stays and
-   **Mix now** rebuilds it from `session.json`.
+   count, RMS and peak), then mixes in the background.
+4. The mixer level-matches each channel from the measured RMS/peak, runs the mic through
+   `VoiceChain` (high-pass, gentle noise-floor expander, limiter), and writes `audio.m4a` plus a
+   mono `voice.m4a` — both in the same streaming pass.
+5. `RecordingOutput.promote` moves a readable mix out to `{folder}.m4a` and the voice track to
+   `{folder}.voice.m4a`, deletes the raw files, and removes the folder when empty. If the mix fails
+   or the app dies first, the folder stays and **Mix now** rebuilds it from `session.json`.
 
 The take in progress is never listed as a recent recording; the library only shows finished takes
 and recoverable folders.
@@ -45,7 +48,22 @@ and recoverable folders.
   sample rate changes mid-recording (`setSourceRate`), it resamples to the file's rate.
 - **Main actor**: `SidetoneModel` and all UI.
 - **Utility task**: the stereo mix, streaming in 16k-frame chunks, so memory does not grow with
-  recording length.
+  recording length. The voice chain is offline (mix time) and stateful across chunks.
+
+## Voice quality
+
+`LevelStats` accumulates RMS and peak on the producer side, only for the frames actually written
+(paused audio is neither metered nor counted). At mix time:
+
+- **Level match** — a static gain brings each channel to a -20 dBFS speech RMS, capped so the
+  measured peak cannot go above -1 dBFS. Recordings made before 1.2 have no measurement and are
+  left at their original level.
+- **VoiceChain** — 70 Hz 12 dB/octave high-pass, a 2.5:1 downward expander (max 10 dB reduction,
+  5 ms attack / 200 ms release) and a soft limiter at -1 dBFS. Deliberately gentle: an aggressive
+  gate clips consonants and makes transcription worse.
+- **Voice track** — the processed mic channel is encoded to mono AAC 96 kbps in the same pass as
+  the stereo mix, so it costs no extra read of the raw file. A failure to write it is logged and
+  never fails the recording.
 
 ### Meters without a main-queue storm
 

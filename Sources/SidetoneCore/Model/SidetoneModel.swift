@@ -73,6 +73,14 @@ public final class SidetoneModel {
     public var recordMicrophone: Bool = true {
         didSet { Preferences.recordMicrophone = recordMicrophone }
     }
+    /// High-pass + gentle noise-floor reduction on the voice channel at mix time.
+    public var voiceClarity: Bool = true {
+        didSet { Preferences.voiceClarity = voiceClarity }
+    }
+    /// Write a cleaned, mic-only `.voice.m4a` beside each finished take.
+    public var saveVoiceTrack: Bool = true {
+        didSet { Preferences.saveVoiceTrack = saveVoiceTrack }
+    }
 
     // MARK: - Internals (not observation-tracked)
 
@@ -148,6 +156,8 @@ public final class SidetoneModel {
         silenceThresholdDB = Preferences.silenceThresholdDB
         silenceAutoStopEnabled = Preferences.silenceAutoStop
         recordMicrophone = Preferences.recordMicrophone
+        voiceClarity = Preferences.voiceClarity
+        saveVoiceTrack = Preferences.saveVoiceTrack
     }
 
     private func refreshPermissionStatus() {
@@ -346,6 +356,8 @@ public final class SidetoneModel {
             desktopURL: session.desktopURL, micURL: session.micURL,
             desktopResult: desktopResult, micResult: micResult,
             outputURL: session.outputURL,
+            voiceTrackURL: saveVoiceTrack ? session.folderURL.appendingPathComponent(RecordingFiles.voice) : nil,
+            options: AudioMixOptions(voiceClarity: voiceClarity, levelMatch: true),
             note: micWasSilent ? note + "Mic recorded only silence · " : note,
             savedName: savedName
         )
@@ -380,6 +392,8 @@ public final class SidetoneModel {
             desktopResult: info?.desktop ?? CaptureResult(),
             micResult: info?.mic ?? CaptureResult(),
             outputURL: folder.appendingPathComponent(RecordingFiles.mix),
+            voiceTrackURL: saveVoiceTrack ? folder.appendingPathComponent(RecordingFiles.voice) : nil,
+            options: AudioMixOptions(voiceClarity: voiceClarity, levelMatch: true),
             note: "", savedName: entry.displayTitle
         )
     }
@@ -465,7 +479,8 @@ public final class SidetoneModel {
     private func startMix(
         desktopURL: URL, micURL: URL,
         desktopResult: CaptureResult, micResult: CaptureResult,
-        outputURL: URL, note: String, savedName: String
+        outputURL: URL, voiceTrackURL: URL?, options: AudioMixOptions,
+        note: String, savedName: String
     ) {
         // A second click on "Re-mix" while the first is still running would race on the output file.
         guard mixingOutputs.insert(outputURL).inserted else { return }
@@ -482,7 +497,7 @@ public final class SidetoneModel {
                     try mixer.mix(
                         desktopURL: desktopURL, micURL: micURL,
                         desktopResult: desktopResult, micResult: micResult,
-                        outputURL: outputURL
+                        outputURL: outputURL, voiceTrackURL: voiceTrackURL, options: options
                     )
                 }
             }.value

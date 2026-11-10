@@ -54,7 +54,19 @@ public enum RecordingOutput {
             return mix
         }
 
-        for name in [RecordingFiles.desktop, RecordingFiles.mic, RecordingFiles.info, "audio-partial.m4a"] {
+        // The optional mic-only track follows the stereo file, with the same base name.
+        let voice = folder.appendingPathComponent(RecordingFiles.voice)
+        if fm.fileExists(atPath: voice.path) {
+            let voiceDest = dest.deletingPathExtension().appendingPathExtension("voice.m4a")
+            do {
+                try fm.moveItem(at: voice, to: voiceDest)
+            } catch {
+                Log.library.error("could not move the voice track out of \(folder.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+
+        for name in [RecordingFiles.desktop, RecordingFiles.mic, RecordingFiles.info,
+                     "audio-partial.m4a", "voice-partial.m4a"] {
             try? fm.removeItem(at: folder.appendingPathComponent(name))
         }
         if directoryIsEmpty(folder) {

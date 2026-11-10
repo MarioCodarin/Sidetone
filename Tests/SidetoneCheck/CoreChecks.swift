@@ -187,6 +187,12 @@ func runCoreChecks() throws {
         expectEqual(Preferences.silenceTimeout, 120, "prefs timeout round-trip")
         expectEqual(Preferences.silenceAutoStop, false, "prefs autostop round-trip")
         expectEqual(Preferences.silenceThresholdDB, -40, "prefs threshold round-trip")
+        expectEqual(Preferences.voiceClarity, true, "prefs default voice clarity")
+        expectEqual(Preferences.saveVoiceTrack, true, "prefs default voice track")
+        Preferences.voiceClarity = false
+        Preferences.saveVoiceTrack = false
+        expectEqual(Preferences.voiceClarity, false, "prefs voice clarity round-trip")
+        expectEqual(Preferences.saveVoiceTrack, false, "prefs voice track round-trip")
     }
 
     // MARK: SilenceMonitor
@@ -209,6 +215,34 @@ func runCoreChecks() throws {
         monitor.stop()
         expectEqual(fires, 0, "loud sample resets silence clock")
     }
+
+    // MARK: Voice track promotion + library
+
+    do {
+        let root = try makeTempDir("promote-voice")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("2026-11-10-0930-Sync", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try writeTinyM4A(folder.appendingPathComponent(RecordingFiles.mix))
+        try writeTinyM4A(folder.appendingPathComponent(RecordingFiles.voice))
+        FileManager.default.createFile(
+            atPath: folder.appendingPathComponent(RecordingFiles.desktop).path, contents: Data([0])
+        )
+
+        let promoted = RecordingOutput.promote(folder: folder)
+        expectEqual(promoted?.lastPathComponent, "2026-11-10-0930-Sync.m4a", "promote moves the stereo mix")
+        expect(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent("2026-11-10-0930-Sync.voice.m4a").path
+        ), "promote moves the voice track")
+        expect(!FileManager.default.fileExists(atPath: folder.path), "promote removes the emptied folder")
+
+        let entries = RecordingsLibrary.recent(limit: 10, root: root)
+        expectEqual(entries.count, 1, "voice track is not listed as its own recording")
+        expectEqual(entries.first?.voiceURL?.lastPathComponent, "2026-11-10-0930-Sync.voice.m4a",
+                    "library exposes the voice track")
+        expectEqual(entries.first?.needsMix, false, "promoted take is finished")
+    }
+
 }
 
 /// A tenth of a second of stereo silence, long enough to be a real AAC file.
@@ -279,4 +313,24 @@ private func writeSilentM4A(_ url: URL) throws {
         expectEqual(RecordingsLocation.currentRoot(override: custom), custom, "override wins")
     }
 
+}
+
+
+/// A small, readable AAC file for promotion/library checks.
+func writeTinyM4A(_ url: URL) throws {
+    let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000,
+                               channels: 1, interleaved: false)!
+    let settings: [String: Any] = [
+        AVFormatIDKey: kAudioFormatMPEG4AAC,
+        AVSampleRateKey: 48_000,
+        AVNumberOfChannelsKey: 1,
+        AVEncoderBitRateKey: 96_000
+    ]
+    let file = try AVAudioFile(
+        forWriting: url, settings: settings,
+        commonFormat: .pcmFormatFloat32, interleaved: false
+    )
+    let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4_800)!
+    buffer.frameLength = 4_800
+    try file.write(from: buffer)
 }

@@ -24,7 +24,11 @@ final class StubCapture: AudioCapturing, @unchecked Sendable {
 final class StubMixer: AudioMixing, @unchecked Sendable {
     /// Blocks every mix forever, so the "Mixing…" state can be photographed.
     var hold = false
-    func mix(desktopURL: URL, micURL: URL, desktopResult: CaptureResult, micResult: CaptureResult, outputURL: URL) throws {
+    func mix(
+        desktopURL: URL, micURL: URL,
+        desktopResult: CaptureResult, micResult: CaptureResult,
+        outputURL: URL, voiceTrackURL: URL?, options: AudioMixOptions
+    ) throws {
         if hold { DispatchSemaphore(value: 0).wait() }
     }
 }

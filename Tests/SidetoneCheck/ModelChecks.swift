@@ -30,7 +30,12 @@ final class FakeCapture: AudioCapturing {
 
 /// Records what it was asked to mix; can be held open to simulate a slow mix.
 final class FakeMixer: AudioMixing, @unchecked Sendable {
-    struct Call { var desktop: CaptureResult; var mic: CaptureResult; var output: URL }
+    struct Call {
+        var desktop: CaptureResult
+        var mic: CaptureResult
+        var output: URL
+        var voice: URL?
+    }
     private let lock = NSLock()
     private var _calls: [Call] = []
     private var _fail = false
@@ -42,16 +47,23 @@ final class FakeMixer: AudioMixing, @unchecked Sendable {
     func hold() { lock.withLock { _gate = DispatchSemaphore(value: 0) } }
     func release() { lock.withLock { _gate }?.signal() }
 
-    func mix(desktopURL: URL, micURL: URL, desktopResult: CaptureResult, micResult: CaptureResult, outputURL: URL) throws {
+    func mix(
+        desktopURL: URL, micURL: URL,
+        desktopResult: CaptureResult, micResult: CaptureResult,
+        outputURL: URL, voiceTrackURL: URL?, options: AudioMixOptions
+    ) throws {
         let (gate, fail) = lock.withLock { (_gate, _fail) }
         gate?.wait()
         lock.withLock {
-            _calls.append(Call(desktop: desktopResult, mic: micResult, output: outputURL))
+            _calls.append(Call(desktop: desktopResult, mic: micResult, output: outputURL, voice: voiceTrackURL))
             _fail = false
         }
         struct Boom: LocalizedError { var errorDescription: String? { "boom" } }
         if fail { throw Boom() }
         FileManager.default.createFile(atPath: outputURL.path, contents: Data([1]))
+        if let voiceTrackURL {
+            FileManager.default.createFile(atPath: voiceTrackURL.path, contents: Data([2]))
+        }
     }
 }
 

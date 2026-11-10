@@ -57,6 +57,8 @@ public final class MicCapture: AudioCapturing {
 
     private let scratchCapacity = 16_384
     private var scratch: UnsafeMutablePointer<Float>?
+    /// Running RMS/peak of what was written; read only after the audio tap has stopped.
+    private var stats = LevelStats()
 
     // MARK: - Start
 
@@ -68,6 +70,7 @@ public final class MicCapture: AudioCapturing {
     private func startOnQueue(url: URL) throws {
         tearDownEngine()
         result = CaptureResult()
+        stats.reset()
 
         let engine = AVAudioEngine()
         self.engine = engine
@@ -182,6 +185,7 @@ public final class MicCapture: AudioCapturing {
 
         if channelCount == 1 {
             writer.write(channels[0], count: frames, hostTime: hostTime)
+            stats.add(channels[0], count: frames)
             return
         }
         var offset = 0
@@ -190,6 +194,7 @@ public final class MicCapture: AudioCapturing {
             Downmix.toMono(channels: channels, channelCount: channelCount, offset: offset, frames: chunk, into: scratch)
             // Host time only matters for the first frame; later chunks reuse it harmlessly.
             writer.write(scratch, count: chunk, hostTime: hostTime)
+            stats.add(scratch, count: chunk)
             offset += chunk
         }
     }
@@ -218,6 +223,8 @@ public final class MicCapture: AudioCapturing {
             result.firstHostTime = summary.firstHostTime
             result.frameCount = AVAudioFramePosition(summary.framesWritten)
         }
+        result.rmsDB = stats.rmsDB
+        result.peakDB = stats.peakDB
         writer = nil
         scratch?.deallocate()
         scratch = nil

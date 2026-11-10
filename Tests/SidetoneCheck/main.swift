@@ -1,5 +1,8 @@
 import Foundation
 
+// Unbuffered stdout so a crash shows exactly which check was running.
+setbuf(stdout, nil)
+
 // Runner for the hardware-free checks. `swift run SidetoneCheck`
 //   CoreChecks   — domain types, naming, library, prefs, silence monitor
 //   AudioChecks  — ring buffer, meters, file writer, streaming mixer (real files, no devices)

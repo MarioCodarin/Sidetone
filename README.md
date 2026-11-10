@@ -32,6 +32,10 @@ live level meter for each channel, and the scope shows both signals while you re
 - **One-click record / pause / save / discard** from a compact menu-bar panel. `⌘R`, `⌘P`, `⌘,`, `⌘Q`.
 - **Live two-channel scope** — desktop above the line, mic below, with the peak of each channel on
   the record ring.
+- **Cleaner voice** — at mix time the mic gets a rumble filter, a gentle noise-floor expander and
+  level matching, so quiet voices become audible without hiss. The raw captures are never altered.
+- **A voice track for transcription** — every take also gets a mono, mic-only `.voice.m4a` beside
+  the stereo mix, already cleaned and levelled. Feed that file to any transcription tool.
 - **Calendar-aware** — nearby meetings are listed; recording during one names the take after it, and
   a notification offers **Stop Recording** when the meeting was scheduled to end.
 - **Your folder, your files** — choose where recordings live in the first-run setup or in Settings.
@@ -44,7 +48,8 @@ live level meter for each channel, and the scope shows both signals while you re
   makes it go silent mid-recording.
 - **Local-only by design** — no network code, no accounts, no keys, no telemetry.
 
-Sidetone does **not** transcribe. Use a separate tool on the saved `.m4a` if you want text.
+Sidetone does **not** transcribe. It does produce the file transcription tools want: a mono,
+clean, level-matched `.voice.m4a` next to the stereo mix.
 
 ---
 
@@ -108,11 +113,15 @@ While a take is in progress it is a working folder:
     session.json    alignment data, used to re-mix after a crash
 ```
 
-When the mix succeeds, the folder is replaced by one file next to it:
+When the mix succeeds, the folder is replaced by the files next to it:
 
 ```
-~/Documents/Recordings/2026-11-10-0930-Weekly-sync.m4a   stereo AAC, desktop = L, mic = R
+~/Documents/Recordings/2026-11-10-0930-Weekly-sync.m4a        stereo AAC, desktop = L, mic = R
+~/Documents/Recordings/2026-11-10-0930-Weekly-sync.voice.m4a  mono AAC, the cleaned mic only
 ```
+
+The voice track is only produced when the mic captured something, and can be turned off in
+Settings → Voice.
 
 The raw files are deleted only once that `.m4a` is a readable audio file. If the mix fails, the folder
 stays and the panel offers **Mix now**. CAF (not WAV) is used for the raw files so a long meeting never
@@ -130,6 +139,7 @@ nothing outside it, apart from its own preferences in `UserDefaults`.
 | **Desktop audio** | Core Audio **process tap** (`CATapDescription` + `AudioHardwareCreateProcessTap`) in a tap-only private aggregate device, driven by an IOProc. Needs *Audio Recording* — not Screen Recording. |
 | **Microphone** | A separate `AVAudioEngine` input tap, created on Record and torn down on Stop, so Sidetone does not hold the mic while idle. |
 | **Two captures, one file** | Each source streams to its own raw `.caf`; on Save they are aligned by first-buffer host time, resampled to 48 kHz, interleaved (L = desktop, R = mic) and encoded to AAC. |
+| **Voice quality** | On Save, a `VoiceChain` levels the take to a consistent speech RMS, high-passes the rumble, gently expands the noise floor and soft-limits at -1 dBFS. The same pass writes the mono voice track. |
 | **Realtime safety** | The IOProc only downmixes and `memcpy`s into a lock-free SPSC ring. A dedicated thread drains it to disk. No allocation, no locks shared with control code, no disk I/O on the audio thread. |
 | **Meters** | Peaks are coalesced to 20 Hz on the main thread, so hundreds of audio callbacks per second cost two SwiftUI updates. |
 
@@ -154,7 +164,7 @@ docs/                        architecture and screenshots
 ## Development
 
 ```sh
-swift run SidetoneCheck          # 208 hardware-free checks: no devices, no network, no XCTest
+swift run SidetoneCheck          # 244 hardware-free checks: no devices, no network, no XCTest
 swift run SidetonePreview out/   # screenshot every panel/setup/settings state, light + dark
 ./make-icon.sh                   # rebuild Assets/Sidetone.icns from Assets/icon.svg (needs librsvg)
 ./build.sh --install             # release build + install into /Applications
@@ -180,8 +190,10 @@ If you find a security or privacy issue, see [`SECURITY.md`](SECURITY.md).
 
 ## Limitations
 
-- Two channels, one file: there is no per-app audio splitting and no transcription.
-- On speakers the mic can pick up the room; headphones give the cleanest separation.
+- Two channels, one file: there is no per-app audio splitting and no built-in transcription.
+- Noise reduction is deliberately gentle. It removes rumble and steady room tone; it does not
+  invent speech that the microphone did not pick up. On speakers the mic can still pick up the
+  room, and headphones give the cleanest separation.
 - Ad-hoc signing means a rebuild can reset the macOS privacy grants.
 
 ## License

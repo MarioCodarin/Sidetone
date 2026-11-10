@@ -224,6 +224,137 @@ func runAudioChecks() throws {
         )
         expectEqual((try? Data(contentsOf: output))?.count, 3, "failed mix keeps the previous audio.m4a")
     }
+    // MARK: VoiceChain (mix-time cleanup)
+
+    func sine(_ frequency: Double, amplitude: Float, seconds: Double) -> [Float] {
+        let count = Int(48_000 * seconds)
+        return (0..<count).map { index in
+            Float(sin(2 * .pi * frequency * Double(index) / 48_000)) * amplitude
+        }
+    }
+
+    func rms(_ samples: ArraySlice<Float>) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        let sum = samples.reduce(into: Float(0)) { $0 += $1 * $1 }
+        return sqrt(sum / Float(samples.count))
+    }
+
+    func processed(_ input: [Float], gainDB: Float = 0, clarity: Bool = true) -> [Float] {
+        var output = input
+        var chain = VoiceChain(sampleRate: 48_000, gainDB: gainDB, clarity: clarity)
+        output.withUnsafeMutableBufferPointer { buffer in
+            chain.process(buffer.baseAddress!, count: buffer.count)
+        }
+        return output
+    }
+
+    do {
+        // Rumble filter: 50 Hz must come out clearly quieter than 1 kHz.
+        let low = processed(sine(50, amplitude: 0.5, seconds: 1))
+        let speech = processed(sine(1_000, amplitude: 0.5, seconds: 1))
+        let lowRMS = rms(low[24_000...])
+        let speechRMS = rms(speech[24_000...])
+        expect(lowRMS < speechRMS * 0.7, "voice chain: 50 Hz rumble attenuated (\(lowRMS) vs \(speechRMS))")
+        expectClose(Double(speechRMS), 0.5 / sqrt(2), tolerance: 0.02, "voice chain: speech band passes through")
+
+        // Noise floor: a -60 dBFS tone is reduced, a -20 dBFS tone is not.
+        let quietIn = sine(1_000, amplitude: 0.001, seconds: 1)
+        let quietOut = processed(quietIn)
+        let quietRatio = rms(quietOut[24_000...]) / rms(quietIn[24_000...])
+        expect(quietRatio < 0.75, "voice chain: quiet noise floor reduced (ratio \(quietRatio))")
+
+        let loudIn = sine(1_000, amplitude: 0.1, seconds: 1)
+        let loudOut = processed(loudIn)
+        let loudRatio = rms(loudOut[24_000...]) / rms(loudIn[24_000...])
+        expect(loudRatio > 0.95 && loudRatio < 1.05, "voice chain: speech level untouched (ratio \(loudRatio))")
+
+        // Limiter: hot input cannot leave the chain above 0 dBFS.
+        let hot = processed(sine(1_000, amplitude: 1.5, seconds: 0.5), clarity: false)
+        let peak = hot.reduce(into: Float(0)) { $0 = max($0, abs($1)) }
+        expect(peak <= 1.0 && peak >= 0.89, "voice chain: limiter caps at -1 dBFS (peak \(peak))")
+    }
+
+    // Makeup gain: RMS target, capped by the measured peak.
+    expectClose(Double(VoiceChain.makeupGainDB(rmsDB: -40, peakDB: -10)), 9, tolerance: 0.01, "gain: peak caps the boost")
+    expectClose(Double(VoiceChain.makeupGainDB(rmsDB: -40, peakDB: nil)), 18, tolerance: 0.01, "gain: max boost clamp")
+    expectClose(Double(VoiceChain.makeupGainDB(rmsDB: -10, peakDB: -3)), -10, tolerance: 0.01, "gain: loud take attenuated")
+    expectEqual(VoiceChain.makeupGainDB(rmsDB: nil, peakDB: nil), 0, "gain: no stats leaves the level alone")
+
+    // MARK: Voice track (mono, same pass, beside the stereo mix)
+
+    do {
+        let dir = try makeTempDir("mix-voice")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let desktop = dir.appendingPathComponent(RecordingFiles.desktop)
+        let mic = dir.appendingPathComponent(RecordingFiles.mic)
+        let output = dir.appendingPathComponent(RecordingFiles.mix)
+        let voice = dir.appendingPathComponent(RecordingFiles.voice)
+
+        try writeSineCAF(to: desktop, seconds: 0.5, sampleRate: 48_000, amplitude: 0.3)
+        try writeSineCAF(to: mic, seconds: 0.5, sampleRate: 48_000, amplitude: 0.1)
+        try StereoMixer().mix(
+            desktopURL: desktop, micURL: mic,
+            desktopResult: CaptureResult(firstHostTime: 100, sampleRate: 48_000, frameCount: 24_000,
+                                         rmsDB: -16, peakDB: -6),
+            micResult: CaptureResult(firstHostTime: 100, sampleRate: 48_000, frameCount: 24_000,
+                                     rmsDB: -30, peakDB: -20),
+            outputURL: output, voiceTrackURL: voice, options: AudioMixOptions()
+        )
+
+        expect(FileManager.default.fileExists(atPath: voice.path), "voice track written")
+        let voiceFile = try AVAudioFile(forReading: voice)
+        expectEqual(Int(voiceFile.processingFormat.channelCount), 1, "voice track is mono")
+        expectClose(Double(voiceFile.length), 24_000, tolerance: 4_096, "voice track spans the take")
+
+        let stereoFile = try AVAudioFile(forReading: output)
+        expectEqual(Int(stereoFile.processingFormat.channelCount), 2, "stereo mix still stereo")
+        expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("voice-partial.m4a").path),
+               "no partial voice file left")
+
+        // Level matching: the mic was -30 dB RMS, so it should come out clearly louder.
+        let stereo = AVAudioPCMBuffer(pcmFormat: stereoFile.processingFormat,
+                                      frameCapacity: AVAudioFrameCount(stereoFile.length))!
+        try stereoFile.read(into: stereo)
+        var micPeak: Float = 0
+        let right = stereo.floatChannelData![1]
+        for index in 0..<Int(stereo.frameLength) { micPeak = max(micPeak, abs(right[index])) }
+        expect(micPeak > 0.25, "mic channel level-matched up (peak \(micPeak))")
+        expect(micPeak <= 1.0, "mic channel does not clip")
+    }
+
+    // No mic → no voice track, and the desktop is still centered.
+    do {
+        let dir = try makeTempDir("mix-voice-none")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let desktop = dir.appendingPathComponent(RecordingFiles.desktop)
+        let output = dir.appendingPathComponent(RecordingFiles.mix)
+        let voice = dir.appendingPathComponent(RecordingFiles.voice)
+        try writeSineCAF(to: desktop, seconds: 0.3, sampleRate: 48_000, amplitude: 0.3)
+        try StereoMixer().mix(
+            desktopURL: desktop, micURL: dir.appendingPathComponent("nope.caf"),
+            desktopResult: CaptureResult(), micResult: CaptureResult(),
+            outputURL: output, voiceTrackURL: voice, options: AudioMixOptions()
+        )
+        expect(!FileManager.default.fileExists(atPath: voice.path), "no voice track without a mic")
+    }
+
+
+    #if DEBUG
+    // MARK: LevelStats (what the captures hand to the mixer)
+
+    do {
+        var stats = LevelStats()
+        let samples: [Float] = [0.5, -0.5, 0.5, -0.5]
+        samples.withUnsafeBufferPointer { buffer in
+            stats.add(buffer.baseAddress!, count: buffer.count)
+        }
+        expectClose(Double(stats.rmsDB ?? 0), -6.02, tolerance: 0.05, "level stats: RMS in dBFS")
+        expectClose(Double(stats.peakDB ?? 0), -6.02, tolerance: 0.05, "level stats: peak in dBFS")
+        stats.reset()
+        expect(stats.rmsDB == nil && stats.peakDB == nil, "level stats: reset clears the measurement")
+    }
+    #endif
+
 }
 
 /// Write a mono float CAF containing a 440 Hz sine.
@@ -285,5 +416,6 @@ func writeSineCAF(to url: URL, seconds: Double, sampleRate: Double, amplitude: F
         expectEqual(mono, [0, 0, 0], "downmix: interleaved average")
     }
     #endif
+
 
 }

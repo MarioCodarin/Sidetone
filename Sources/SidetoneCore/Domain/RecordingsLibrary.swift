@@ -13,14 +13,24 @@ public struct RecordingEntry: Identifiable, Equatable {
     public let date: Date
     /// audio.m4a, if it exists.
     public let audioURL: URL?
+    /// voice.m4a — the cleaned, mic-only track for transcription, when one was produced.
+    public let voiceURL: URL?
     /// Length in seconds. From `session.json` while the take is still a folder, otherwise from the m4a.
     public let duration: TimeInterval?
 
-    public init(folderURL: URL, title: String?, date: Date, audioURL: URL?, duration: TimeInterval? = nil) {
+    public init(
+        folderURL: URL,
+        title: String?,
+        date: Date,
+        audioURL: URL?,
+        voiceURL: URL? = nil,
+        duration: TimeInterval? = nil
+    ) {
         self.folderURL = folderURL
         self.title = title
         self.date = date
         self.audioURL = audioURL
+        self.voiceURL = voiceURL
         self.duration = duration
     }
 
@@ -104,27 +114,37 @@ public enum RecordingsLibrary {
         let (parsedDate, title) = parseFolderName(url.lastPathComponent)
         let fileDate = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
         let fromSession = SessionInfo.read(fromFolder: url).flatMap(duration(of:))
+        let voice = url.appendingPathComponent(RecordingFiles.voice)
+        let hasVoice = fm.fileExists(atPath: voice.path)
 
         return RecordingEntry(
             folderURL: url,
             title: title,
             date: parsedDate ?? fileDate,
             audioURL: hasAudio ? audio : nil,
+            voiceURL: hasVoice ? voice : nil,
             duration: fromSession ?? (hasAudio ? duration(ofAudio: audio) : nil)
         )
     }
 
     private static func fileEntry(_ url: URL, values: URLResourceValues?) -> RecordingEntry? {
+        let name = url.lastPathComponent
         guard url.pathExtension.lowercased() == "m4a",
-              url.lastPathComponent != "audio-partial.m4a" else { return nil }
+              name != "audio-partial.m4a",
+              name != "voice-partial.m4a",
+              !name.hasSuffix(".voice.m4a") else { return nil }
 
         let (parsedDate, title) = parseFolderName(url.deletingPathExtension().lastPathComponent)
         let fileDate = values?.creationDate ?? values?.contentModificationDate ?? .distantPast
+        // A finished take is `{base}.m4a`; its voice track is `{base}.voice.m4a` beside it.
+        let voice = url.deletingPathExtension().appendingPathExtension("voice.m4a")
+        let hasVoice = FileManager.default.fileExists(atPath: voice.path)
         return RecordingEntry(
             folderURL: url,
             title: title,
             date: parsedDate ?? fileDate,
             audioURL: url,
+            voiceURL: hasVoice ? voice : nil,
             duration: duration(ofAudio: url)
         )
     }

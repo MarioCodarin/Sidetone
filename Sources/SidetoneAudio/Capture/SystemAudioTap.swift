@@ -84,6 +84,8 @@ public final class SystemAudioTap: AudioCapturing {
     private var scratch: UnsafeMutablePointer<Float>?
     private let scratchCapacity = 16_384
     private var capturedResult = CaptureResult()
+    /// Running RMS/peak of what was written; read only after the IOProc has stopped.
+    private var stats = LevelStats()
 
     // MARK: - Realtime-path flags (separate locks so the IOProc never waits on `lock`)
 
@@ -127,6 +129,7 @@ public final class SystemAudioTap: AudioCapturing {
 
         tapUUID = UUID()
         capturedResult = CaptureResult()
+        stats.reset()
 
         do {
             try startLocked(url: url)
@@ -196,6 +199,8 @@ public final class SystemAudioTap: AudioCapturing {
             capturedResult.firstHostTime = summary.firstHostTime
             capturedResult.frameCount = AVAudioFramePosition(summary.framesWritten)
         }
+        capturedResult.rmsDB = stats.rmsDB
+        capturedResult.peakDB = stats.peakDB
         writer = nil
         scratch?.deallocate()
         scratch = nil
@@ -355,6 +360,7 @@ public final class SystemAudioTap: AudioCapturing {
             // One buffer per channel (the usual process-tap layout). Mono passes straight through.
             if buffers.count == 1 && channelsPerBuffer == 1 {
                 context.writer.write(samples, count: frames, hostTime: hostTime)
+                stats.add(samples, count: frames)
                 return
             }
             var offset = 0
@@ -364,6 +370,7 @@ public final class SystemAudioTap: AudioCapturing {
                     buffers: buffers, offset: offset, frames: chunk, into: context.scratch
                 )
                 context.writer.write(context.scratch, count: chunk, hostTime: hostTime)
+                stats.add(context.scratch, count: chunk)
                 offset += chunk
             }
             return
@@ -380,6 +387,7 @@ public final class SystemAudioTap: AudioCapturing {
                 into: context.scratch
             )
             context.writer.write(context.scratch, count: chunk, hostTime: hostTime)
+            stats.add(context.scratch, count: chunk)
             offset += chunk
         }
     }

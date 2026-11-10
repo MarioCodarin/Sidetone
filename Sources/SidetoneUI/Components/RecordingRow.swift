@@ -33,12 +33,22 @@ struct RecordingRow: View {
             Menu {
                 if let audio = entry.audioURL {
                     Button { model.open(audio) } label: {
-                        Label("Open", systemImage: "play.circle")
+                        Label("Open stereo mix", systemImage: "play.circle")
                     }
                     Button { model.copyFileToPasteboard(audio) } label: {
-                        Label("Copy audio file", systemImage: "waveform")
+                        Label("Copy stereo mix", systemImage: "waveform")
                     }
-                } else {
+                }
+                if let voice = entry.voiceURL {
+                    Divider()
+                    Button { model.open(voice) } label: {
+                        Label("Open voice track", systemImage: "mic")
+                    }
+                    Button { model.copyFileToPasteboard(voice) } label: {
+                        Label("Copy voice track", systemImage: "doc.on.doc")
+                    }
+                }
+                if entry.audioURL == nil {
                     Button { model.remix(entry) } label: {
                         Label("Mix now", systemImage: "wand.and.stars")
                     }

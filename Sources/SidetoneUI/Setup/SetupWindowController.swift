@@ -38,8 +38,12 @@ public final class SetupWindowController: NSObject, NSWindowDelegate {
         window.delegate = self
         window.setContentSize(size)
         window.center()
+        // A menu-bar app may be launched while another app owns a full-screen Space; bring
+        // setup to whatever Space is active instead of leaving it behind.
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         self.window = window
         window.makeKeyAndOrderFront(nil)
+        Log.app.notice("setup window shown")
     }
 
     public func close() {
@@ -47,9 +51,15 @@ public final class SetupWindowController: NSObject, NSWindowDelegate {
     }
 
     public func windowWillClose(_ notification: Notification) {
-        // Closing without pressing a button is still a decision: do not open it again next launch.
-        model?.completeSetup()
+        Log.app.notice("setup window closed")
         window = nil
+    }
+
+    /// Called for a user close (red button, ⌘W, Esc) — not for app termination. Closing without
+    /// pressing a button is still a decision, so setup does not open again next launch.
+    public func windowShouldClose(_ sender: NSWindow) -> Bool {
+        model?.completeSetup()
+        return true
     }
 }
 

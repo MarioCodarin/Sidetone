@@ -38,6 +38,7 @@ public final class PreferencesWindowController: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.setContentSize(size)
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         // Reopen where the user left it; centre only the very first time.
         if !window.setFrameUsingName(Self.frameName) { window.center() }
         window.setFrameAutosaveName(Self.frameName)

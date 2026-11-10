@@ -9,6 +9,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppEnvironment.makeModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // A menu-bar agent must survive having zero windows. Without this, AppKit treats the
+        // app as idle once setup/Settings closes and terminates it — the menu-bar item vanishes.
+        ProcessInfo.processInfo.disableAutomaticTermination("Sidetone is a menu-bar app")
+        ProcessInfo.processInfo.disableSuddenTermination()
+
         // Menu-bar-only agent app: no Dock icon, no app-switcher entry.
         NSApp.setActivationPolicy(.accessory)
         model.launch()
@@ -19,6 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 SetupWindowController.shared.show(model: model)
             }
         }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
     /// Quitting mid-recording (or mid-mix) must not lose the recording: save it and let the

@@ -3,7 +3,9 @@ import AVFoundation
 import CoreAudio
 import SidetoneCore
 import SidetoneAudio
+#if DEBUG
 @testable import SidetoneAudio
+#endif
 
 /// Signal-level checks: ring buffer, meters, downmix, file writer, streaming mixer. No hardware.
 func runAudioChecks() throws {
@@ -245,6 +247,7 @@ func writeSineCAF(to url: URL, seconds: Double, sampleRate: Double, amplitude: F
 
     // MARK: Downmix (the realtime path)
 
+    #if DEBUG
     do {
         // Planar: one buffer per channel, averaged.
         let left: [Float] = [1, 1, 0.5, -1]
@@ -281,5 +284,6 @@ func writeSineCAF(to url: URL, seconds: Double, sampleRate: Double, amplitude: F
         }
         expectEqual(mono, [0, 0, 0], "downmix: interleaved average")
     }
+    #endif
 
 }

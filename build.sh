@@ -35,8 +35,8 @@ IDENTITY="${CODESIGN_IDENTITY:--}"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Info.plist)
 BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Info.plist)
 echo "==> Sidetone $VERSION ($BUILD)"
-echo "==> swift build -c release"
-swift build -c release
+echo "==> swift build -c release --product Sidetone"
+swift build -c release --product Sidetone
 
 echo "==> assembling $APP"
 rm -rf "$APP"

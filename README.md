@@ -154,7 +154,7 @@ docs/                        architecture and screenshots
 ## Development
 
 ```sh
-swift run SidetoneCheck          # 180 hardware-free checks: no devices, no network, no XCTest
+swift run SidetoneCheck          # 208 hardware-free checks: no devices, no network, no XCTest
 swift run SidetonePreview out/   # screenshot every panel/setup/settings state, light + dark
 ./make-icon.sh                   # rebuild Assets/Sidetone.icns from Assets/icon.svg (needs librsvg)
 ./build.sh --install             # release build + install into /Applications
